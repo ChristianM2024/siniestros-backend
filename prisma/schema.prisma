@@ -1,0 +1,227 @@
+// ============================================================
+// SISTEMA DE GESTION DE SINIESTROS - RENTING ECUADOR
+// Esquema de base de datos (PostgreSQL) via Prisma ORM
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// SEGURIDAD: Usuarios, Roles y Permisos por pantalla
+// ------------------------------------------------------------
+
+model Rol {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique // Admin, Supervisor, Operador, Consulta
+  descripcion String?
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now()) @map("creado_en")
+
+  usuarios    Usuario[]
+  permisos    RolPantalla[]
+
+  @@map("roles")
+}
+
+// Cada "pantalla" representa una vista del frontend (Dashboard, Reportar, Seguimiento, etc.)
+// Esto reemplaza la navegación fija del Excel por permisos configurables.
+model Pantalla {
+  id        Int      @id @default(autoincrement())
+  codigo    String   @unique // "dashboard", "reportar_siniestro", "seguimiento", "base_datos", "vehiculos", "usuarios"
+  nombre    String   // Nombre visible en el menu
+  ruta      String   // Ruta del frontend, ej. "/siniestros/nuevo"
+  icono     String?  // nombre de icono (lucide-react) para el menu
+  orden     Int      @default(0)
+
+  permisos  RolPantalla[]
+
+  @@map("pantallas")
+}
+
+// Tabla puente: qué puede hacer cada rol en cada pantalla (ver / crear / editar / eliminar)
+model RolPantalla {
+  id         Int      @id @default(autoincrement())
+  rolId      Int      @map("rol_id")
+  pantallaId Int      @map("pantalla_id")
+  puedeVer      Boolean @default(true)  @map("puede_ver")
+  puedeCrear    Boolean @default(false) @map("puede_crear")
+  puedeEditar   Boolean @default(false) @map("puede_editar")
+  puedeEliminar Boolean @default(false) @map("puede_eliminar")
+
+  rol      Rol      @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  pantalla Pantalla @relation(fields: [pantallaId], references: [id], onDelete: Cascade)
+
+  @@unique([rolId, pantallaId])
+  @@map("rol_pantalla")
+}
+
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  nombre       String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  rolId        Int      @map("rol_id")
+  activo       Boolean  @default(true)
+  ultimoLogin  DateTime? @map("ultimo_login")
+  creadoEn     DateTime @default(now()) @map("creado_en")
+
+  rol           Rol         @relation(fields: [rolId], references: [id])
+  siniestrosCreados Siniestro[] @relation("SiniestroCreadoPor")
+
+  @@map("usuarios")
+}
+
+// ------------------------------------------------------------
+// CATALOGOS (equivalentes a las hojas CIUDADES / listas del Excel)
+// ------------------------------------------------------------
+
+model Ciudad {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  vehiculos  Vehiculo[]
+  siniestros Siniestro[]
+
+  @@map("ciudades")
+}
+
+model Aseguradora {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  vehiculos Vehiculo[]
+
+  @@map("aseguradoras")
+}
+
+// ------------------------------------------------------------
+// HOJA "VEHICULOS"
+// ------------------------------------------------------------
+
+model Vehiculo {
+  id                Int       @id @default(autoincrement())
+  placa             String    @unique
+  marca             String
+  modelo            String
+  anio              Int?
+  color             String?
+  chasis            String?
+  noMotor           String?   @map("no_motor")
+  cliente           String
+  noContrato        String?   @map("no_contrato")
+  ciudadId          Int?      @map("ciudad_id")
+  aseguradoraId     Int?      @map("aseguradora_id")
+  noPoliza          String?   @map("no_poliza")
+  vencimientoPoliza DateTime? @map("vencimiento_poliza")
+  estado            String    @default("Activo") // Activo, Inactivo, Baja
+
+  creadoEn DateTime @default(now()) @map("creado_en")
+
+  ciudad      Ciudad?      @relation(fields: [ciudadId], references: [id])
+  aseguradora Aseguradora? @relation(fields: [aseguradoraId], references: [id])
+  siniestros  Siniestro[]
+
+  @@map("vehiculos")
+}
+
+// ------------------------------------------------------------
+// HOJA "BASE DE DATOS" / "REPORTAR SINIESTRO" / "SEGUIMIENTO"
+// ------------------------------------------------------------
+
+enum EstadoSiniestro {
+  Reportado
+  En_Peritaje    @map("En Peritaje")
+  En_Reparacion  @map("En Reparacion")
+  Entregado
+  Cerrado
+}
+
+model Siniestro {
+  id               Int       @id @default(autoincrement())
+  noSiniestro      String    @unique @map("no_siniestro") // generado: SIN-2026-001
+
+  vehiculoId       Int       @map("vehiculo_id")
+  fechaSiniestro   DateTime  @map("fecha_siniestro")
+
+  // Datos del conductor (copiados al momento del reporte, no siempre igual al del vehiculo)
+  conductor        String
+  cedulaConductor  String?   @map("cedula_conductor")
+  telConductor     String?   @map("tel_conductor")
+  licenciaConductor    String?   @map("licencia_conductor")
+  categoriaLicencia    String?   @map("categoria_licencia")
+  vencimientoLicencia  DateTime? @map("vencimiento_licencia")
+
+  lugarAccidente   String    @map("lugar_accidente")
+  ciudadId         Int?      @map("ciudad_id")
+  descripcion      String?
+
+  danosVehiculo    String?   @map("danos_vehiculo")
+  danosTerceros    String?   @map("danos_terceros")
+  intervinoPolicia Boolean   @default(false) @map("intervino_policia")
+  heridos          Boolean   @default(false)
+
+  // Flujo de fechas -> usado para calcular Tiempo A/B/C/Total
+  fechaNotifAseg     DateTime? @map("fecha_notif_aseg")
+  fechaIngresoTaller DateTime? @map("fecha_ingreso_taller")
+  fechaProforma      DateTime? @map("fecha_proforma")
+  fechaAutorizacion  DateTime? @map("fecha_autorizacion")
+  fechaEntrega       DateTime? @map("fecha_entrega")
+
+  estado  EstadoSiniestro @default(Reportado)
+  notas   String?
+
+  creadoPorId Int      @map("creado_por_id")
+  creadoEn    DateTime @default(now()) @map("creado_en")
+  actualizadoEn DateTime @updatedAt @map("actualizado_en")
+
+  vehiculo   Vehiculo @relation(fields: [vehiculoId], references: [id])
+  ciudad     Ciudad?  @relation(fields: [ciudadId], references: [id])
+  creadoPor  Usuario  @relation("SiniestroCreadoPor", fields: [creadoPorId], references: [id])
+
+  documentos       SiniestroDocumento[]
+  historialEstados SiniestroHistorial[]
+
+  @@map("siniestros")
+  @@index([estado])
+  @@index([vehiculoId])
+}
+
+// Los "Tiempo A/B/C/Total" del Excel NO se guardan como columnas fijas:
+// se calculan en la app (backend) a partir de las fechas de arriba,
+// igual que las formulas de la hoja SEGUIMIENTO. Esto evita datos
+// desincronizados. Se exponen via la API como campos calculados.
+
+// Documentos requeridos (seccion 5 del formulario REPORTAR SINIESTRO)
+model SiniestroDocumento {
+  id          Int      @id @default(autoincrement())
+  siniestroId Int      @map("siniestro_id")
+  tipo        String   // foto_siniestro, foto_vehiculo, foto_conductor, foto_licencia, croquis, acta_policial
+  url         String   // ruta/S3 key del archivo
+  subidoEn    DateTime @default(now()) @map("subido_en")
+
+  siniestro Siniestro @relation(fields: [siniestroId], references: [id], onDelete: Cascade)
+
+  @@map("siniestro_documentos")
+}
+
+// Bitacora de cambios de estado (para trazabilidad, no existe en el Excel pero es
+// buena practica para un sistema real de seguimiento)
+model SiniestroHistorial {
+  id          Int      @id @default(autoincrement())
+  siniestroId Int      @map("siniestro_id")
+  estadoAnterior String? @map("estado_anterior")
+  estadoNuevo    String  @map("estado_nuevo")
+  nota           String?
+  usuarioId      Int     @map("usuario_id")
+  creadoEn       DateTime @default(now()) @map("creado_en")
+
+  siniestro Siniestro @relation(fields: [siniestroId], references: [id], onDelete: Cascade)
+
+  @@map("siniestro_historial")
+}
