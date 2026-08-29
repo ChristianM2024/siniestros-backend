@@ -73,6 +73,7 @@ model Usuario {
 
   rol           Rol         @relation(fields: [rolId], references: [id])
   siniestrosCreados Siniestro[] @relation("SiniestroCreadoPor")
+  auditLogs     AuditLog[]                                        // <-- NUEVO
 
   @@map("usuarios")
 }
@@ -224,4 +225,26 @@ model SiniestroHistorial {
   siniestro Siniestro @relation(fields: [siniestroId], references: [id], onDelete: Cascade)
 
   @@map("siniestro_historial")
+}
+
+// ------------------------------------------------------------
+// AUDITORÍA: quién hizo qué y cuándo
+// ------------------------------------------------------------
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  usuarioId    Int?     @map("usuario_id")
+  usuarioEmail String?  @map("usuario_email") // se conserva aunque el usuario se borre despues
+  accion       String   // LOGIN_OK, LOGIN_FALLIDO, CREATE, UPDATE, DELETE
+  entidad      String?  // "usuario", "siniestro", "vehiculo", etc.
+  entidadId    String?  @map("entidad_id")
+  detalle      Json?
+  ip           String?
+  creadoEn     DateTime @default(now()) @map("creado_en")
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+  @@index([usuarioId])
+  @@index([creadoEn])
+  @@index([entidad])
 }

@@ -12,6 +12,7 @@ async function main() {
     { codigo: 'base_datos', nombre: 'Base de Datos', ruta: '/siniestros', icono: 'Database', orden: 4 },
     { codigo: 'vehiculos', nombre: 'Vehículos', ruta: '/vehiculos', icono: 'Car', orden: 5 },
     { codigo: 'usuarios', nombre: 'Usuarios y Roles', ruta: '/admin/usuarios', icono: 'Users', orden: 6 },
+    { codigo: 'auditoria', nombre: 'Auditoría', ruta: '/admin/auditoria', icono: 'ScrollText', orden: 7 },
   ];
 
   const pantallaRecords: Record<string, number> = {};

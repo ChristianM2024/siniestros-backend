@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../config/prisma';
 import { requireAuth } from '../middleware/auth';
+import { registrarAuditoria } from '../utils/auditoria'; // <-- NUEVO
 
 const router = Router();
 
@@ -26,11 +27,13 @@ router.post('/login', async (req, res) => {
   });
 
   if (!usuario || !usuario.activo) {
+    await registrarAuditoria({ req, accion: 'LOGIN_FALLIDO', detalle: { email, motivo: 'usuario_no_existe_o_inactivo' } }); // <-- NUEVO
     return res.status(401).json({ error: 'Credenciales invalidas' });
   }
 
   const passwordOk = await bcrypt.compare(password, usuario.passwordHash);
   if (!passwordOk) {
+    await registrarAuditoria({ req, accion: 'LOGIN_FALLIDO', entidad: 'usuario', entidadId: usuario.id, detalle: { email } }); // <-- NUEVO
     return res.status(401).json({ error: 'Credenciales invalidas' });
   }
 
@@ -49,6 +52,8 @@ router.post('/login', async (req, res) => {
     where: { id: usuario.id },
     data: { ultimoLogin: new Date() },
   });
+
+  await registrarAuditoria({ req: { ...req, user: payload } as any, accion: 'LOGIN_OK', entidad: 'usuario', entidadId: usuario.id }); // <-- NUEVO
 
   res.json({ token, usuario: payload });
 });

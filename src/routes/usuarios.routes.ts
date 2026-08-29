@@ -4,9 +4,12 @@ import { z } from 'zod';
 import { prisma } from '../config/prisma';
 import { requireAuth } from '../middleware/auth';
 import { requierePermiso } from '../middleware/permisos';
+import { autoAuditar } from '../middleware/auditoria';
 
 const router = Router();
 router.use(requireAuth);
+router.use(autoAuditar('usuario')); // en siniestros.routes.ts: 'siniestro' | en vehiculos.routes.ts: 'vehiculo'
+
 
 router.get('/', requierePermiso('usuarios', 'ver'), async (_req, res) => {
   const usuarios = await prisma.usuario.findMany({

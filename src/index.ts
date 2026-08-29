@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import 'express-async-errors'; // <-- NUEVO: sin esto, un error async en una ruta no llega al manejador de errores
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -11,6 +12,7 @@ import vehiculosRoutes from './routes/vehiculos.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import usuariosRoutes from './routes/usuarios.routes';
 import ciudadesRoutes from './routes/ciudades.routes';
+import auditoriaRoutes from './routes/auditoria.routes'; // <-- NUEVO
 
 const app = express();
 
@@ -30,13 +32,17 @@ app.use('/api/vehiculos', vehiculosRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/ciudades', ciudadesRoutes);
+app.use('/api/auditoria', auditoriaRoutes); // <-- NUEVO
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
-// Manejador de errores generico
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
-  res.status(500).json({ error: 'Error interno del servidor' });
+// Manejador de errores mejorado: distingue codigo de estado y deja rastro claro en logs
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(`[error] ${req.method} ${req.originalUrl}:`, err); // <-- mejorado: antes solo "console.error(err)"
+  const status = err.status || err.statusCode || 500; // <-- NUEVO
+  res.status(status).json({
+    error: status === 500 ? 'Error interno del servidor' : err.message || 'Error',
+  });
 });
 
 const PORT = process.env.PORT || 4000;
