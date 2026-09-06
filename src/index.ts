@@ -8,11 +8,15 @@ import path from 'path';
 
 import authRoutes from './routes/auth.routes';
 import siniestrosRoutes from './routes/siniestros.routes';
+import siniestrosPublicoRoutes from './routes/siniestrosPublico.routes'; // NUEVO, sin auth
+
 import vehiculosRoutes from './routes/vehiculos.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import usuariosRoutes from './routes/usuarios.routes';
 import ciudadesRoutes from './routes/ciudades.routes';
 import auditoriaRoutes from './routes/auditoria.routes'; // <-- NUEVO
+import clientesRouter from './routes/clientes.routes';
+import aseguradorasRouter from './routes/aseguradoras.routes';
 
 const app = express();
 
@@ -28,11 +32,14 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // API REST versionada -> facil de consumir desde otras aplicaciones
 app.use('/api/auth', authRoutes);
 app.use('/api/siniestros', siniestrosRoutes);
+app.use('/api/publico/siniestros', siniestrosPublicoRoutes); // fuera de cualquier guard JWT
 app.use('/api/vehiculos', vehiculosRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/ciudades', ciudadesRoutes);
 app.use('/api/auditoria', auditoriaRoutes); // <-- NUEVO
+app.use('/api/clientes', clientesRouter);
+app.use('/api/aseguradoras', aseguradorasRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

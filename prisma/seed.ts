@@ -8,11 +8,13 @@ async function main() {
   const pantallas = [
     { codigo: 'dashboard', nombre: 'Dashboard', ruta: '/', icono: 'LayoutDashboard', orden: 1 },
     { codigo: 'reportar_siniestro', nombre: 'Reportar Siniestro', ruta: '/siniestros/nuevo', icono: 'FilePlus', orden: 2 },
-    { codigo: 'seguimiento', nombre: 'Seguimiento', ruta: '/siniestros/seguimiento', icono: 'Search', orden: 3 },
-    { codigo: 'base_datos', nombre: 'Base de Datos', ruta: '/siniestros', icono: 'Database', orden: 4 },
-    { codigo: 'vehiculos', nombre: 'Vehículos', ruta: '/vehiculos', icono: 'Car', orden: 5 },
-    { codigo: 'usuarios', nombre: 'Usuarios y Roles', ruta: '/admin/usuarios', icono: 'Users', orden: 6 },
-    { codigo: 'auditoria', nombre: 'Auditoría', ruta: '/admin/auditoria', icono: 'ScrollText', orden: 7 },
+    { codigo: 'envio_formulario', nombre: 'Envío de Formulario', ruta: '/siniestros/envio-formulario', icono: 'Send', orden: 3 },
+    { codigo: 'seguimiento', nombre: 'Seguimiento', ruta: '/siniestros/seguimiento', icono: 'Search', orden: 4 },
+    { codigo: 'base_datos', nombre: 'Base de Datos', ruta: '/siniestros', icono: 'Database', orden: 5 },
+    { codigo: 'vehiculos', nombre: 'Vehículos', ruta: '/vehiculos', icono: 'Car', orden: 6 },
+    { codigo: 'mantenimiento', nombre: 'Mantenimiento', ruta: '/siniestros/mantenimiento', icono: 'Settings', orden: 7 },
+    { codigo: 'usuarios', nombre: 'Usuarios y Roles', ruta: '/admin/usuarios', icono: 'Users', orden: 8 },
+    { codigo: 'auditoria', nombre: 'Auditoría', ruta: '/admin/auditoria', icono: 'ScrollText', orden: 9 },
   ];
 
   const pantallaRecords: Record<string, number> = {};
@@ -44,7 +46,7 @@ async function main() {
   }
 
   // ---------- Permisos por rol/pantalla ----------
-  // Admin: todo
+  // Admin: todo (incluye "mantenimiento" automáticamente por estar en pantallaRecords)
   for (const codigo of Object.keys(pantallaRecords)) {
     await prisma.rolPantalla.upsert({
       where: { rolId_pantallaId: { rolId: rolRecords['Admin'], pantallaId: pantallaRecords[codigo] } },
@@ -56,7 +58,7 @@ async function main() {
     });
   }
 
-  // Supervisor: todo menos usuarios
+  // Supervisor: todo menos usuarios (incluye "mantenimiento" con ver+crear+editar automáticamente)
   for (const codigo of Object.keys(pantallaRecords).filter((c) => c !== 'usuarios')) {
     await prisma.rolPantalla.upsert({
       where: { rolId_pantallaId: { rolId: rolRecords['Supervisor'], pantallaId: pantallaRecords[codigo] } },
@@ -68,10 +70,12 @@ async function main() {
     });
   }
 
-  // Operador: dashboard (ver), reportar (crear), seguimiento (editar), base_datos (ver)
+  // Operador: dashboard (ver), reportar (crear), envio_formulario (crear), seguimiento (editar), base_datos (ver)
+  // "mantenimiento" NO está en esta lista a propósito -> Operador no tiene fila de permiso -> sin acceso
   const operadorPermisos: Record<string, { ver: boolean; crear: boolean; editar: boolean }> = {
     dashboard: { ver: true, crear: false, editar: false },
     reportar_siniestro: { ver: true, crear: true, editar: false },
+    envio_formulario: { ver: true, crear: true, editar: false },
     seguimiento: { ver: true, crear: false, editar: true },
     base_datos: { ver: true, crear: false, editar: false },
   };
@@ -86,7 +90,7 @@ async function main() {
     });
   }
 
-  // Consulta: solo ver dashboard y base_datos
+  // Consulta: solo ver dashboard y base_datos ("mantenimiento" queda sin acceso)
   for (const codigo of ['dashboard', 'base_datos']) {
     await prisma.rolPantalla.upsert({
       where: { rolId_pantallaId: { rolId: rolRecords['Consulta'], pantallaId: pantallaRecords[codigo] } },

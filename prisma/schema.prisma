@@ -73,7 +73,9 @@ model Usuario {
 
   rol           Rol         @relation(fields: [rolId], references: [id])
   siniestrosCreados Siniestro[] @relation("SiniestroCreadoPor")
-  auditLogs     AuditLog[]                                        // <-- NUEVO
+  historialAcciones SiniestroHistorial[]                              // <-- NUEVO: opuesto de SiniestroHistorial.usuario
+  solicitudesFormularioEnviadas SolicitudFormulario[]                 // <-- NUEVO
+  auditLogs     AuditLog[]
 
   @@map("usuarios")
 }
@@ -101,6 +103,19 @@ model Aseguradora {
   @@map("aseguradoras")
 }
 
+model Cliente {
+  id        Int      @id @default(autoincrement())
+  nombre    String   @unique
+  celular   String?
+  correo    String?
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now()) @map("creado_en")
+
+  vehiculos Vehiculo[]
+
+  @@map("clientes")
+}
+
 // ------------------------------------------------------------
 // HOJA "VEHICULOS"
 // ------------------------------------------------------------
@@ -113,8 +128,8 @@ model Vehiculo {
   anio              Int?
   color             String?
   chasis            String?
-  noMotor           String?   @map("no_motor")
-  cliente           String
+  noMotor           String?   @map("no_motor")  
+  clienteId Int?     @map("cliente_id")
   noContrato        String?   @map("no_contrato")
   ciudadId          Int?      @map("ciudad_id")
   aseguradoraId     Int?      @map("aseguradora_id")
@@ -126,7 +141,9 @@ model Vehiculo {
 
   ciudad      Ciudad?      @relation(fields: [ciudadId], references: [id])
   aseguradora Aseguradora? @relation(fields: [aseguradoraId], references: [id])
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
   siniestros  Siniestro[]
+  solicitudesFormulario SolicitudFormulario[]  // <-- NUEVO
 
   @@map("vehiculos")
 }
@@ -143,6 +160,13 @@ enum EstadoSiniestro {
   Cerrado
 }
 
+// NUEVO: distingue si el siniestro lo creó el staff internamente
+// o si llegó por el formulario público que llena el cliente
+enum OrigenSiniestro {
+  INTERNO
+  PUBLICO
+}
+
 model Siniestro {
   id               Int       @id @default(autoincrement())
   noSiniestro      String    @unique @map("no_siniestro") // generado: SIN-2026-001
@@ -154,6 +178,7 @@ model Siniestro {
   conductor        String
   cedulaConductor  String?   @map("cedula_conductor")
   telConductor     String?   @map("tel_conductor")
+  correoConductor  String?   @map("correo_conductor")               // <-- NUEVO: lo pide el formulario público
   licenciaConductor    String?   @map("licencia_conductor")
   categoriaLicencia    String?   @map("categoria_licencia")
   vencimientoLicencia  DateTime? @map("vencimiento_licencia")
@@ -177,20 +202,26 @@ model Siniestro {
   estado  EstadoSiniestro @default(Reportado)
   notas   String?
 
-  creadoPorId Int      @map("creado_por_id")
+  origen        OrigenSiniestro @default(INTERNO) @map("origen")     // <-- NUEVO
+
+  // NUEVO: ahora opcional. Un siniestro creado desde el formulario público
+  // no tiene un usuario del sistema detrás.
+  creadoPorId Int?     @map("creado_por_id")
   creadoEn    DateTime @default(now()) @map("creado_en")
   actualizadoEn DateTime @updatedAt @map("actualizado_en")
 
   vehiculo   Vehiculo @relation(fields: [vehiculoId], references: [id])
   ciudad     Ciudad?  @relation(fields: [ciudadId], references: [id])
-  creadoPor  Usuario  @relation("SiniestroCreadoPor", fields: [creadoPorId], references: [id])
+  creadoPor  Usuario? @relation("SiniestroCreadoPor", fields: [creadoPorId], references: [id])
 
   documentos       SiniestroDocumento[]
   historialEstados SiniestroHistorial[]
+  solicitudFormulario SolicitudFormulario?    // <-- NUEVO: opuesto de SolicitudFormulario.siniestro
 
   @@map("siniestros")
   @@index([estado])
   @@index([vehiculoId])
+  @@index([origen])
 }
 
 // Los "Tiempo A/B/C/Total" del Excel NO se guardan como columnas fijas:
@@ -202,7 +233,7 @@ model Siniestro {
 model SiniestroDocumento {
   id          Int      @id @default(autoincrement())
   siniestroId Int      @map("siniestro_id")
-  tipo        String   // foto_siniestro, foto_vehiculo, foto_conductor, foto_licencia, croquis, acta_policial
+  tipo        String   // foto_siniestro, foto_vehiculo, foto_conductor, foto_licencia, foto_matricula, croquis, acta_policial
   url         String   // ruta/S3 key del archivo
   subidoEn    DateTime @default(now()) @map("subido_en")
 
@@ -219,12 +250,48 @@ model SiniestroHistorial {
   estadoAnterior String? @map("estado_anterior")
   estadoNuevo    String  @map("estado_nuevo")
   nota           String?
-  usuarioId      Int     @map("usuario_id")
+
+  // NUEVO: ahora opcional. La entrada de historial que se crea al guardar
+  // un siniestro del formulario público no tiene un usuario del sistema detrás.
+  usuarioId      Int?     @map("usuario_id")
   creadoEn       DateTime @default(now()) @map("creado_en")
 
   siniestro Siniestro @relation(fields: [siniestroId], references: [id], onDelete: Cascade)
+  usuario   Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@map("siniestro_historial")
+}
+
+// ------------------------------------------------------------
+// NUEVO: solicitudes del formulario público
+// El staff busca un vehiculo por placa y dispara un link único
+// (por correo y/o WhatsApp) para que el cliente reporte el siniestro
+// ------------------------------------------------------------
+model SolicitudFormulario {
+  id              Int      @id @default(autoincrement())
+  token           String   @unique @default(uuid())
+
+  vehiculoId      Int      @map("vehiculo_id")
+  enviadoPorId    Int      @map("enviado_por_id") // el staff que lo envía, sí requiere usuario
+
+  correoCliente   String?  @map("correo_cliente")
+  telefonoCliente String?  @map("telefono_cliente")
+  canal           String   // "CORREO" | "WHATSAPP" | "AMBOS"
+  estado          String   @default("ENVIADO") @map("estado") // ENVIADO | COMPLETADO | EXPIRADO
+
+  expiraEn DateTime @map("expira_en")
+  creadoEn DateTime @default(now()) @map("creado_en")
+
+  // Cuando el cliente completa el formulario, queda enlazado al siniestro creado
+  siniestroId Int?       @unique @map("siniestro_id")
+  siniestro   Siniestro? @relation(fields: [siniestroId], references: [id])
+
+  vehiculo   Vehiculo @relation(fields: [vehiculoId], references: [id])
+  enviadoPor Usuario  @relation(fields: [enviadoPorId], references: [id])
+
+  @@map("solicitudes_formulario")
+  @@index([estado])
+  @@index([vehiculoId])
 }
 
 // ------------------------------------------------------------

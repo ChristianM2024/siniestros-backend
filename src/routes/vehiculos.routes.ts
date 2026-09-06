@@ -9,7 +9,7 @@ router.use(requireAuth);
 
 router.get('/', requierePermiso('vehiculos', 'ver'), async (req, res) => {
   const vehiculos = await prisma.vehiculo.findMany({
-    include: { ciudad: true, aseguradora: true, _count: { select: { siniestros: true } } },
+    include: { ciudad: true, aseguradora: true, cliente: true, _count: { select: { siniestros: true } } },
     orderBy: { placa: 'asc' },
   });
   res.json(vehiculos);
@@ -19,7 +19,7 @@ router.get('/', requierePermiso('vehiculos', 'ver'), async (req, res) => {
 router.get('/buscar/:placa', requierePermiso('reportar_siniestro', 'ver'), async (req, res) => {
   const vehiculo = await prisma.vehiculo.findUnique({
     where: { placa: req.params.placa.toUpperCase() },
-    include: { ciudad: true, aseguradora: true },
+    include: { ciudad: true, aseguradora: true, cliente: true },
   });
   if (!vehiculo) return res.status(404).json({ error: 'Vehiculo no encontrado' });
   res.json(vehiculo);
@@ -33,7 +33,7 @@ const vehiculoSchema = z.object({
   color: z.string().optional(),
   chasis: z.string().optional(),
   noMotor: z.string().optional(),
-  cliente: z.string().min(1),
+  clienteId: z.number(),
   noContrato: z.string().optional(),
   ciudadId: z.number().optional(),
   aseguradoraId: z.number().optional(),

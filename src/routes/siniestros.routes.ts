@@ -3,6 +3,7 @@ import { z } from 'zod';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { Resend } from 'resend';
 import { prisma } from '../config/prisma';
 import { requireAuth } from '../middleware/auth';
 import { requierePermiso } from '../middleware/permisos';
@@ -11,8 +12,14 @@ import { calcularTiempos } from '../utils/tiempos';
 const router = Router();
 router.use(requireAuth);
 
+// Si RESEND_API_KEY no está configurada (ej. todavía no creaste la cuenta),
+// no tumbamos el servidor: dejamos resend en null y se omite el envío de correo
+// con un warning, en vez de un throw al arrancar.
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
 // ---------- Helper: genera el siguiente numero de siniestro SIN-AAAA-NNN ----------
-async function generarNumeroSiniestro(): Promise<string> {
+// EXPORTADO: lo reutiliza siniestrosPublico.routes.ts al crear un siniestro desde el formulario público
+export async function generarNumeroSiniestro(): Promise<string> {
   const anio = new Date().getFullYear();
   const prefijo = `SIN-${anio}-`;
   const ultimo = await prisma.siniestro.findFirst({
@@ -103,6 +110,7 @@ router.post('/', requierePermiso('reportar_siniestro', 'crear'), async (req, res
       intervinoPolicia: data.intervinoPolicia ?? false,
       heridos: data.heridos ?? false,
       creadoPorId: req.user!.id,
+      origen: 'INTERNO',
       historialEstados: {
         create: { estadoNuevo: 'Reportado', usuarioId: req.user!.id, nota: 'Siniestro creado' },
       },
@@ -156,21 +164,99 @@ router.patch('/:id/seguimiento', requierePermiso('seguimiento', 'editar'), async
 });
 
 // ============================================================
+// NUEVO: pestaña "Envío de Formulario" — el staff busca la placa
+// y dispara el link público al cliente por correo y/o WhatsApp
+// ============================================================
+
+const enviarFormularioSchema = z.object({
+  vehiculoId: z.number(),
+  correoCliente: z.string().email().optional(),
+  telefonoCliente: z.string().optional(),
+  canal: z.enum(['CORREO', 'WHATSAPP', 'AMBOS']),
+});
+
+router.post('/solicitudes-formulario', requierePermiso('reportar_siniestro', 'crear'), async (req, res) => {
+  const parsed = enviarFormularioSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Datos invalidos', detalles: parsed.error.flatten() });
+  }
+  const { vehiculoId, correoCliente, telefonoCliente, canal } = parsed.data;
+
+  if ((canal === 'CORREO' || canal === 'AMBOS') && !correoCliente) {
+    return res.status(400).json({ error: 'Se requiere correoCliente para el canal seleccionado' });
+  }
+  if ((canal === 'WHATSAPP' || canal === 'AMBOS') && !telefonoCliente) {
+    return res.status(400).json({ error: 'Se requiere telefonoCliente para el canal seleccionado' });
+  }
+
+  const vehiculo = await prisma.vehiculo.findUnique({ where: { id: vehiculoId } });
+  if (!vehiculo) return res.status(404).json({ error: 'Vehiculo no encontrado' });
+
+  const solicitud = await prisma.solicitudFormulario.create({
+    data: {
+      vehiculoId,
+      enviadoPorId: req.user!.id,
+      correoCliente,
+      telefonoCliente,
+      canal,
+      expiraEn: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 dias
+    },
+  });
+
+  const link = `${process.env.FRONTEND_URL}/reportar-siniestro/${solicitud.token}`;
+  let correoEnviado = false;
+
+  try {
+    if ((canal === 'CORREO' || canal === 'AMBOS') && correoCliente) {
+      if (!resend) {
+        console.warn('RESEND_API_KEY no configurado — se omite el envío de correo de la solicitud de formulario');
+      } else {
+        await resend.emails.send({
+          from: 'Siniestros Renting <notificaciones@tudominio.com>',
+          to: correoCliente,
+          subject: `Reporte de siniestro — Vehiculo ${vehiculo.placa}`,
+          html: `<p>Por favor completa el siguiente formulario con los detalles del siniestro:</p>
+                 <p><a href="${link}">${link}</a></p>
+                 <p>Este link expira en 7 dias.</p>`,
+        });
+        correoEnviado = true;
+      }
+    }
+  } catch (err) {
+    console.error('Error enviando correo de solicitud de formulario:', err);
+    // no se aborta la solicitud por esto: el registro y el link ya existen,
+    // el staff puede reenviar o pasar el link manualmente
+  }
+
+  let whatsappUrl: string | null = null;
+  if ((canal === 'WHATSAPP' || canal === 'AMBOS') && telefonoCliente) {
+    const telLimpio = telefonoCliente.replace(/\D/g, '');
+    const mensaje = encodeURIComponent(`Hola, por favor completa el reporte de tu siniestro aqui: ${link}`);
+    whatsappUrl = `https://wa.me/${telLimpio}?text=${mensaje}`;
+  }
+
+  res.status(201).json({ ok: true, token: solicitud.token, correoEnviado, whatsappUrl });
+});
+
+// ============================================================
 // SECCION 5 DEL EXCEL: "DOCUMENTOS REQUERIDOS"
 // Fotos y PDF asociados a un siniestro (foto siniestro, foto
 // vehiculo, foto doc. conductor, foto licencia, croquis, acta policial)
 // ============================================================
 
-const TIPOS_DOCUMENTO = [
+// EXPORTADO: siniestrosPublico.routes.ts reusa esta misma lista de tipos
+export const TIPOS_DOCUMENTO = [
   'foto_siniestro',
   'foto_vehiculo',
   'foto_conductor',
   'foto_licencia',
+  'foto_matricula',
   'croquis',
   'acta_policial',
 ] as const;
 
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'siniestros');
+// EXPORTADO
+export const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'siniestros');
 
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
@@ -228,7 +314,6 @@ router.post(
       return res.status(404).json({ error: 'Siniestro no encontrado' });
     }
 
-    // Ruta publica del archivo (servida como estatica desde index.ts: /uploads)
     const urlRelativa = `/uploads/siniestros/${siniestroId}/${req.file.filename}`;
 
     const documento = await prisma.siniestroDocumento.create({
