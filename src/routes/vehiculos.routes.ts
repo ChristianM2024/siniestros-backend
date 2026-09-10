@@ -7,9 +7,26 @@ import { requierePermiso } from '../middleware/permisos';
 const router = Router();
 router.use(requireAuth);
 
+// Incluye usado en GET / y GET /buscar/:placa — trae todos los catálogos
+// nuevos ya resueltos (no solo el id) para que el frontend pinte nombres.
+const includeCompleto = {
+  ciudad: true,
+  aseguradora: true,
+  cliente: true,
+  administrador: true,
+  gerenteCuenta: true,
+  tipoActivo: true,
+  tipoCombustible: true,
+  clase: true,
+  gama: true,
+  proveedorCompra: true,
+  tipoOperacion: true,
+  nivelBlindaje: true,
+};
+
 router.get('/', requierePermiso('vehiculos', 'ver'), async (req, res) => {
   const vehiculos = await prisma.vehiculo.findMany({
-    include: { ciudad: true, aseguradora: true, cliente: true, _count: { select: { siniestros: true } } },
+    include: { ...includeCompleto, _count: { select: { siniestros: true } } },
     orderBy: { placa: 'asc' },
   });
   res.json(vehiculos);
@@ -19,7 +36,7 @@ router.get('/', requierePermiso('vehiculos', 'ver'), async (req, res) => {
 router.get('/buscar/:placa', requierePermiso('reportar_siniestro', 'ver'), async (req, res) => {
   const vehiculo = await prisma.vehiculo.findUnique({
     where: { placa: req.params.placa.toUpperCase() },
-    include: { ciudad: true, aseguradora: true, cliente: true },
+    include: includeCompleto,
   });
   if (!vehiculo) return res.status(404).json({ error: 'Vehiculo no encontrado' });
   res.json(vehiculo);
@@ -39,6 +56,29 @@ const vehiculoSchema = z.object({
   aseguradoraId: z.number().optional(),
   noPoliza: z.string().optional(),
   vencimientoPoliza: z.coerce.date().optional(),
+
+  // --- NUEVO: datos de contrato/cotización ---
+  noAnexo: z.string().optional(),
+  noCotizacion: z.string().optional(),
+  noFactura: z.string().optional(),
+  fechaInicioContrato: z.coerce.date().optional(),
+  fechaFinContrato: z.coerce.date().optional(),
+  kmAnualContratado: z.number().optional(),
+
+  // --- NUEVO: catálogos (todos opcionales, ids de las tablas nuevas) ---
+  administradorId: z.number().optional(),
+  gerenteCuentaId: z.number().optional(),
+  tipoActivoId: z.number().optional(),
+  tipoCombustibleId: z.number().optional(),
+  claseId: z.number().optional(),
+  gamaId: z.number().optional(),
+  proveedorCompraId: z.number().optional(),
+  tipoOperacionId: z.number().optional(),
+  nivelBlindajeId: z.number().optional(),
+
+  // --- NUEVO: banderas ---
+  blindaje: z.boolean().optional(),
+  sustituto: z.boolean().optional(),
 });
 
 router.post('/', requierePermiso('vehiculos', 'crear'), async (req, res) => {
@@ -48,6 +88,7 @@ router.post('/', requierePermiso('vehiculos', 'crear'), async (req, res) => {
   }
   const vehiculo = await prisma.vehiculo.create({
     data: { ...parsed.data, placa: parsed.data.placa.toUpperCase() },
+    include: includeCompleto,
   });
   res.status(201).json(vehiculo);
 });
@@ -60,6 +101,7 @@ router.put('/:id', requierePermiso('vehiculos', 'editar'), async (req, res) => {
   const vehiculo = await prisma.vehiculo.update({
     where: { id: Number(req.params.id) },
     data: parsed.data,
+    include: includeCompleto,
   });
   res.json(vehiculo);
 });

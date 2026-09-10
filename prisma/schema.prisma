@@ -73,8 +73,8 @@ model Usuario {
 
   rol           Rol         @relation(fields: [rolId], references: [id])
   siniestrosCreados Siniestro[] @relation("SiniestroCreadoPor")
-  historialAcciones SiniestroHistorial[]                              // <-- NUEVO: opuesto de SiniestroHistorial.usuario
-  solicitudesFormularioEnviadas SolicitudFormulario[]                 // <-- NUEVO
+  historialAcciones SiniestroHistorial[]                              // <-- opuesto de SiniestroHistorial.usuario
+  solicitudesFormularioEnviadas SolicitudFormulario[]                 // <-- opuesto de SolicitudFormulario.enviadoPor
   auditLogs     AuditLog[]
 
   @@map("usuarios")
@@ -116,6 +116,97 @@ model Cliente {
   @@map("clientes")
 }
 
+// --- NUEVOS CATALOGOS (agregados para los campos de contrato/vehículo) ---
+
+model Administrador {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  vehiculos Vehiculo[]
+
+  @@map("administradores")
+}
+
+model GerenteCuenta {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  vehiculos Vehiculo[]
+
+  @@map("gerentes_cuenta")
+}
+
+model TipoActivo {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  vehiculos Vehiculo[]
+
+  @@map("tipos_activo")
+}
+
+model TipoCombustible {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  vehiculos Vehiculo[]
+
+  @@map("tipos_combustible")
+}
+
+// Automovil, Camion, Camioneta, SUV, Van...
+model Clase {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  gamas     Gama[]
+  vehiculos Vehiculo[]
+
+  @@map("clases")
+}
+
+// Depende de Clase: "SUV Gama Alta" solo existe dentro de la clase SUV.
+model Gama {
+  id      Int    @id @default(autoincrement())
+  nombre  String
+  claseId Int    @map("clase_id")
+
+  clase     Clase      @relation(fields: [claseId], references: [id], onDelete: Restrict)
+  vehiculos Vehiculo[]
+
+  @@unique([claseId, nombre])
+  @@map("gamas")
+}
+
+model ProveedorCompra {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  vehiculos Vehiculo[]
+
+  @@map("proveedores_compra")
+}
+
+// Ejecutivo, Extremo Blindado, Mixto, Operativo...
+model TipoOperacion {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  vehiculos Vehiculo[]
+
+  @@map("tipos_operacion")
+}
+
+// N/A, Nivel III A con runflats, etc.
+model NivelBlindaje {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+
+  vehiculos Vehiculo[]
+
+  @@map("niveles_blindaje")
+}
+
 // ------------------------------------------------------------
 // HOJA "VEHICULOS"
 // ------------------------------------------------------------
@@ -128,8 +219,8 @@ model Vehiculo {
   anio              Int?
   color             String?
   chasis            String?
-  noMotor           String?   @map("no_motor")  
-  clienteId Int?     @map("cliente_id")
+  noMotor           String?   @map("no_motor")
+  clienteId         Int?      @map("cliente_id")
   noContrato        String?   @map("no_contrato")
   ciudadId          Int?      @map("ciudad_id")
   aseguradoraId     Int?      @map("aseguradora_id")
@@ -137,13 +228,46 @@ model Vehiculo {
   vencimientoPoliza DateTime? @map("vencimiento_poliza")
   estado            String    @default("Activo") // Activo, Inactivo, Baja
 
+  // --- NUEVO: datos de contrato/cotización ---
+  noAnexo             String?   @map("no_anexo")
+  noCotizacion        String?   @map("no_cotizacion")
+  noFactura           String?   @map("no_factura")
+  fechaInicioContrato DateTime? @map("fecha_inicio_contrato")
+  fechaFinContrato    DateTime? @map("fecha_fin_contrato")
+  kmAnualContratado   Int?      @map("km_anual_contratado")
+
+  // --- NUEVO: catálogos ---
+  administradorId   Int? @map("administrador_id")
+  gerenteCuentaId   Int? @map("gerente_cuenta_id")
+  tipoActivoId      Int? @map("tipo_activo_id")
+  tipoCombustibleId Int? @map("tipo_combustible_id")
+  claseId           Int? @map("clase_id")
+  gamaId            Int? @map("gama_id")
+  proveedorCompraId Int? @map("proveedor_compra_id")
+  tipoOperacionId   Int? @map("tipo_operacion_id")
+  nivelBlindajeId   Int? @map("nivel_blindaje_id")
+
+  // --- NUEVO: banderas ---
+  blindaje  Boolean @default(false)
+  sustituto Boolean @default(false)
+
   creadoEn DateTime @default(now()) @map("creado_en")
 
-  ciudad      Ciudad?      @relation(fields: [ciudadId], references: [id])
-  aseguradora Aseguradora? @relation(fields: [aseguradoraId], references: [id])
-  cliente   Cliente? @relation(fields: [clienteId], references: [id])
-  siniestros  Siniestro[]
-  solicitudesFormulario SolicitudFormulario[]  // <-- NUEVO
+  ciudad          Ciudad?          @relation(fields: [ciudadId], references: [id])
+  aseguradora     Aseguradora?     @relation(fields: [aseguradoraId], references: [id])
+  cliente         Cliente?         @relation(fields: [clienteId], references: [id])
+  administrador   Administrador?   @relation(fields: [administradorId], references: [id])
+  gerenteCuenta   GerenteCuenta?   @relation(fields: [gerenteCuentaId], references: [id])
+  tipoActivo      TipoActivo?      @relation(fields: [tipoActivoId], references: [id])
+  tipoCombustible TipoCombustible? @relation(fields: [tipoCombustibleId], references: [id])
+  clase           Clase?           @relation(fields: [claseId], references: [id])
+  gama            Gama?            @relation(fields: [gamaId], references: [id])
+  proveedorCompra ProveedorCompra? @relation(fields: [proveedorCompraId], references: [id])
+  tipoOperacion   TipoOperacion?   @relation(fields: [tipoOperacionId], references: [id])
+  nivelBlindaje   NivelBlindaje?   @relation(fields: [nivelBlindajeId], references: [id])
+
+  siniestros             Siniestro[]
+  solicitudesFormulario  SolicitudFormulario[]
 
   @@map("vehiculos")
 }
@@ -160,7 +284,7 @@ enum EstadoSiniestro {
   Cerrado
 }
 
-// NUEVO: distingue si el siniestro lo creó el staff internamente
+// distingue si el siniestro lo creó el staff internamente
 // o si llegó por el formulario público que llena el cliente
 enum OrigenSiniestro {
   INTERNO
@@ -178,7 +302,7 @@ model Siniestro {
   conductor        String
   cedulaConductor  String?   @map("cedula_conductor")
   telConductor     String?   @map("tel_conductor")
-  correoConductor  String?   @map("correo_conductor")               // <-- NUEVO: lo pide el formulario público
+  correoConductor  String?   @map("correo_conductor")               // lo pide el formulario público
   licenciaConductor    String?   @map("licencia_conductor")
   categoriaLicencia    String?   @map("categoria_licencia")
   vencimientoLicencia  DateTime? @map("vencimiento_licencia")
@@ -202,9 +326,9 @@ model Siniestro {
   estado  EstadoSiniestro @default(Reportado)
   notas   String?
 
-  origen        OrigenSiniestro @default(INTERNO) @map("origen")     // <-- NUEVO
+  origen        OrigenSiniestro @default(INTERNO) @map("origen")
 
-  // NUEVO: ahora opcional. Un siniestro creado desde el formulario público
+  // Un siniestro creado desde el formulario público
   // no tiene un usuario del sistema detrás.
   creadoPorId Int?     @map("creado_por_id")
   creadoEn    DateTime @default(now()) @map("creado_en")
@@ -216,7 +340,7 @@ model Siniestro {
 
   documentos       SiniestroDocumento[]
   historialEstados SiniestroHistorial[]
-  solicitudFormulario SolicitudFormulario?    // <-- NUEVO: opuesto de SolicitudFormulario.siniestro
+  solicitudFormulario SolicitudFormulario?    // opuesto de SolicitudFormulario.siniestro
 
   @@map("siniestros")
   @@index([estado])
@@ -251,7 +375,7 @@ model SiniestroHistorial {
   estadoNuevo    String  @map("estado_nuevo")
   nota           String?
 
-  // NUEVO: ahora opcional. La entrada de historial que se crea al guardar
+  // La entrada de historial que se crea al guardar
   // un siniestro del formulario público no tiene un usuario del sistema detrás.
   usuarioId      Int?     @map("usuario_id")
   creadoEn       DateTime @default(now()) @map("creado_en")
@@ -263,7 +387,7 @@ model SiniestroHistorial {
 }
 
 // ------------------------------------------------------------
-// NUEVO: solicitudes del formulario público
+// Solicitudes del formulario público
 // El staff busca un vehiculo por placa y dispara un link único
 // (por correo y/o WhatsApp) para que el cliente reporte el siniestro
 // ------------------------------------------------------------

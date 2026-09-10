@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import 'express-async-errors'; // <-- NUEVO: sin esto, un error async en una ruta no llega al manejador de errores
+import 'express-async-errors'; // <-- sin esto, un error async en una ruta no llega al manejador de errores
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -8,15 +8,28 @@ import path from 'path';
 
 import authRoutes from './routes/auth.routes';
 import siniestrosRoutes from './routes/siniestros.routes';
-import siniestrosPublicoRoutes from './routes/siniestrosPublico.routes'; // NUEVO, sin auth
+import siniestrosPublicoRoutes from './routes/siniestrosPublico.routes'; // sin auth
 
 import vehiculosRoutes from './routes/vehiculos.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import usuariosRoutes from './routes/usuarios.routes';
 import ciudadesRoutes from './routes/ciudades.routes';
-import auditoriaRoutes from './routes/auditoria.routes'; // <-- NUEVO
+import auditoriaRoutes from './routes/auditoria.routes';
 import clientesRouter from './routes/clientes.routes';
 import aseguradorasRouter from './routes/aseguradoras.routes';
+
+// NUEVO: catálogos de Vehículo/Contrato
+import {
+  administradoresRouter,
+  gerentesCuentaRouter,
+  tiposActivoRouter,
+  tiposCombustibleRouter,
+  clasesRouter,
+  proveedoresCompraRouter,
+  tiposOperacionRouter,
+  nivelesBlindajeRouter,
+} from './routes/catalogos.routes';
+import gamaRouter from './routes/gama.routes';
 
 const app = express();
 
@@ -37,16 +50,27 @@ app.use('/api/vehiculos', vehiculosRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/ciudades', ciudadesRoutes);
-app.use('/api/auditoria', auditoriaRoutes); // <-- NUEVO
+app.use('/api/auditoria', auditoriaRoutes);
 app.use('/api/clientes', clientesRouter);
 app.use('/api/aseguradoras', aseguradorasRouter);
+
+// NUEVO: catálogos de Vehículo/Contrato
+app.use('/api/administradores', administradoresRouter);
+app.use('/api/gerentes-cuenta', gerentesCuentaRouter);
+app.use('/api/tipos-activo', tiposActivoRouter);
+app.use('/api/tipos-combustible', tiposCombustibleRouter);
+app.use('/api/clases', clasesRouter);
+app.use('/api/gamas', gamaRouter);
+app.use('/api/proveedores-compra', proveedoresCompraRouter);
+app.use('/api/tipos-operacion', tiposOperacionRouter);
+app.use('/api/niveles-blindaje', nivelesBlindajeRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 // Manejador de errores mejorado: distingue codigo de estado y deja rastro claro en logs
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(`[error] ${req.method} ${req.originalUrl}:`, err); // <-- mejorado: antes solo "console.error(err)"
-  const status = err.status || err.statusCode || 500; // <-- NUEVO
+  console.error(`[error] ${req.method} ${req.originalUrl}:`, err);
+  const status = err.status || err.statusCode || 500;
   res.status(status).json({
     error: status === 500 ? 'Error interno del servidor' : err.message || 'Error',
   });
