@@ -17,6 +17,7 @@ import ciudadesRoutes from './routes/ciudades.routes';
 import auditoriaRoutes from './routes/auditoria.routes';
 import clientesRouter from './routes/clientes.routes';
 import aseguradorasRouter from './routes/aseguradoras.routes';
+import tipoSiniestroRouter from './routes/tipoSiniestro.routes';
 
 // NUEVO: catálogos de Vehículo/Contrato
 import {
@@ -64,6 +65,7 @@ app.use('/api/gamas', gamaRouter);
 app.use('/api/proveedores-compra', proveedoresCompraRouter);
 app.use('/api/tipos-operacion', tiposOperacionRouter);
 app.use('/api/niveles-blindaje', nivelesBlindajeRouter);
+app.use('/api/tipos-siniestro', tipoSiniestroRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

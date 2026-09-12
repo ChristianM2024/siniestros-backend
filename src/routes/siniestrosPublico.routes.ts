@@ -5,7 +5,12 @@ import path from 'path';
 import fs from 'fs';
 import { prisma } from '../config/prisma';
 import { Resend } from 'resend';
-import { generarNumeroSiniestro, TIPOS_DOCUMENTO, UPLOAD_DIR } from './siniestros.routes';
+import {
+  generarNumeroSiniestro,
+  idTipoSiniestroPorCodigo,
+  TIPOS_DOCUMENTO,
+  UPLOAD_DIR,
+} from './siniestros.routes';
 
 // IMPORTANTE: este router NO lleva requireAuth ni requierePermiso.
 // Móntalo en tu app.ts / index.ts como un router separado, independiente
@@ -126,6 +131,9 @@ router.post(
         danosVehiculo: data.danosVehiculo,
         danosTerceros: data.danosTerceros,
         origen: 'PUBLICO',
+        // Código '009' = "Por Ingresar" en el catálogo de Tipos de Siniestro.
+        // Sin esto, los siniestros creados desde el formulario público quedan con tipoSiniestroId = NULL.
+        tipoSiniestroId: await idTipoSiniestroPorCodigo('009'),
         historialEstados: {
           create: { estadoNuevo: 'Reportado', nota: 'Reportado por el cliente vía formulario público' },
         },

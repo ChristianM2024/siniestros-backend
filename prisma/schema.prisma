@@ -207,6 +207,18 @@ model NivelBlindaje {
   @@map("niveles_blindaje")
 }
 
+// --- NUEVO: catálogo de Tipo de Siniestro ---
+model TipoSiniestro {
+  id     Int     @id @default(autoincrement())
+  codigo String  @unique
+  nombre String
+  estado Boolean @default(true) // activo/inactivo
+
+  siniestros Siniestro[]
+
+  @@map("tipos_siniestro")
+}
+
 // ------------------------------------------------------------
 // HOJA "VEHICULOS"
 // ------------------------------------------------------------
@@ -327,6 +339,7 @@ model Siniestro {
   notas   String?
 
   origen        OrigenSiniestro @default(INTERNO) @map("origen")
+  tipoSiniestroId Int?          @map("tipo_siniestro_id")
 
   // Un siniestro creado desde el formulario público
   // no tiene un usuario del sistema detrás.
@@ -337,6 +350,7 @@ model Siniestro {
   vehiculo   Vehiculo @relation(fields: [vehiculoId], references: [id])
   ciudad     Ciudad?  @relation(fields: [ciudadId], references: [id])
   creadoPor  Usuario? @relation("SiniestroCreadoPor", fields: [creadoPorId], references: [id])
+  tipoSiniestro TipoSiniestro? @relation(fields: [tipoSiniestroId], references: [id])
 
   documentos       SiniestroDocumento[]
   historialEstados SiniestroHistorial[]

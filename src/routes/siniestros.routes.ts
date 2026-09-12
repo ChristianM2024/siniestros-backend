@@ -17,17 +17,25 @@ router.use(requireAuth);
 // con un warning, en vez de un throw al arrancar.
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-// ---------- Helper: genera el siguiente numero de siniestro SIN-AAAA-NNN ----------
+// ---------- Helper: genera el siguiente numero de siniestro SIN-NNN ----------
 // EXPORTADO: lo reutiliza siniestrosPublico.routes.ts al crear un siniestro desde el formulario público
+// Nota: antes el formato incluía el año (SIN-AAAA-NNN). Los 2 registros existentes
+// con ese formato se renombraron a SIN-NNN con el script de migración aparte.
 export async function generarNumeroSiniestro(): Promise<string> {
-  const anio = new Date().getFullYear();
-  const prefijo = `SIN-${anio}-`;
+  const prefijo = 'SIN-';
   const ultimo = await prisma.siniestro.findFirst({
     where: { noSiniestro: { startsWith: prefijo } },
     orderBy: { noSiniestro: 'desc' },
   });
-  const siguiente = ultimo ? parseInt(ultimo.noSiniestro.split('-')[2], 10) + 1 : 1;
+  const siguiente = ultimo ? parseInt(ultimo.noSiniestro.split('-')[1], 10) + 1 : 1;
   return `${prefijo}${String(siguiente).padStart(3, '0')}`;
+}
+
+// EXPORTADO: siniestrosPublico.routes.ts reusa este mismo helper para
+// resolver el tipo "Por Ingresar" (código '009') al crear desde el formulario público
+export async function idTipoSiniestroPorCodigo(codigo: string): Promise<number | undefined> {
+  const tipo = await prisma.tipoSiniestro.findUnique({ where: { codigo } });
+  return tipo?.id;
 }
 
 // ---------- GET /api/siniestros  (hoja BASE DE DATOS) ----------
@@ -40,8 +48,8 @@ router.get('/', requierePermiso('base_datos', 'ver'), async (req, res) => {
       ciudadId: ciudadId ? Number(ciudadId) : undefined,
       vehiculo: placa ? { placa: { contains: String(placa), mode: 'insensitive' } } : undefined,
     },
-    include: { vehiculo: true, ciudad: true, creadoPor: { select: { nombre: true } } },
-    orderBy: { fechaSiniestro: 'desc' },
+    include: { vehiculo: true, ciudad: true, creadoPor: { select: { nombre: true } }, tipoSiniestro: true },
+    orderBy: { fechaSiniestro: 'desc' }, 
   });
 
   const conTiempos = siniestros.map((s: (typeof siniestros)[number]) => ({ ...s, tiempos: calcularTiempos(s) }));
@@ -52,7 +60,7 @@ router.get('/', requierePermiso('base_datos', 'ver'), async (req, res) => {
 router.get('/:id', requierePermiso('base_datos', 'ver'), async (req, res) => {
   const siniestro = await prisma.siniestro.findUnique({
     where: { id: Number(req.params.id) },
-    include: { vehiculo: true, ciudad: true, documentos: true, historialEstados: true },
+    include: { vehiculo: true, ciudad: true, documentos: true, historialEstados: true, tipoSiniestro: true },
   });
   if (!siniestro) return res.status(404).json({ error: 'Siniestro no encontrado' });
   res.json({ ...siniestro, tiempos: calcularTiempos(siniestro) });
@@ -111,6 +119,9 @@ router.post('/', requierePermiso('reportar_siniestro', 'crear'), async (req, res
       heridos: data.heridos ?? false,
       creadoPorId: req.user!.id,
       origen: 'INTERNO',
+      // Antes: idTipoSiniestroPorCodigo('SIMPLE') — el código real en la BD es '001', no 'SIMPLE'.
+      // Con el código anterior esto siempre devolvía undefined y el siniestro quedaba con tipoSiniestroId = NULL.
+      tipoSiniestroId: await idTipoSiniestroPorCodigo('001'),
       historialEstados: {
         create: { estadoNuevo: 'Reportado', usuarioId: req.user!.id, nota: 'Siniestro creado' },
       },
@@ -130,6 +141,8 @@ const seguimientoSchema = z.object({
   fechaEntrega: z.coerce.date().optional(),
   estado: z.enum(['Reportado', 'En_Peritaje', 'En_Reparacion', 'Entregado', 'Cerrado']).optional(),
   notas: z.string().optional(),
+  // Permite reasignar el tipo de siniestro desde el panel de Seguimiento
+  tipoSiniestroId: z.coerce.number().optional(),
 });
 
 router.patch('/:id/seguimiento', requierePermiso('seguimiento', 'editar'), async (req, res) => {
@@ -157,7 +170,7 @@ router.patch('/:id/seguimiento', requierePermiso('seguimiento', 'editar'), async
           }
         : undefined,
     },
-    include: { vehiculo: true },
+    include: { vehiculo: true, tipoSiniestro: true },
   });
 
   res.json({ ...actualizado, tiempos: calcularTiempos(actualizado) });
