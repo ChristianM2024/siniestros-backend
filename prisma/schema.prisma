@@ -90,6 +90,7 @@ model Ciudad {
 
   vehiculos  Vehiculo[]
   siniestros Siniestro[]
+  tallerCiudades TallerCiudad[]   // <-- agregar
 
   @@map("ciudades")
 }
@@ -215,8 +216,82 @@ model TipoSiniestro {
   estado Boolean @default(true) // activo/inactivo
 
   siniestros Siniestro[]
-
+  estatusSiniestro EstatusSiniestro[]   // <-- agregar
   @@map("tipos_siniestro")
+}
+
+model Transmision {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  vehiculos Vehiculo[]
+
+  @@map("transmisiones")
+}
+
+// --- NUEVO: Taller y sus ciudades de cobertura ---
+model Taller {
+  id     Int    @id @default(autoincrement())
+  nombre String @unique
+  activo Boolean @default(true)
+
+  ciudades   TallerCiudad[]
+
+  @@map("talleres")
+}
+
+// Un taller puede atender en varias ciudades (tabla puente)
+model TallerCiudad {
+  id       Int @id @default(autoincrement())
+  tallerId Int @map("taller_id")
+  ciudadId Int @map("ciudad_id")
+
+  taller Taller @relation(fields: [tallerId], references: [id], onDelete: Cascade)
+  ciudad Ciudad @relation(fields: [ciudadId], references: [id], onDelete: Restrict)
+
+  puntosAtencion PuntoAtencionTaller[]
+  siniestros     Siniestro[]
+
+  @@unique([tallerId, ciudadId])
+  @@map("taller_ciudades")
+}
+
+// Depende de la combinación Taller+Ciudad, no solo del taller
+model PuntoAtencionTaller {
+  id             Int    @id @default(autoincrement())
+  nombre         String
+  tallerCiudadId Int    @map("taller_ciudad_id")
+
+  tallerCiudad TallerCiudad @relation(fields: [tallerCiudadId], references: [id], onDelete: Cascade)
+  siniestros   Siniestro[]
+
+  @@unique([tallerCiudadId, nombre])
+  @@map("puntos_atencion_taller")
+}
+
+// --- NUEVO: catálogo plano de Estatus de Cobro al Cliente ---
+model EstatusCobroCliente {
+  id     Int     @id @default(autoincrement())
+  nombre String  @unique
+  activo Boolean @default(true)
+
+  siniestros Siniestro[]
+
+  @@map("estatus_cobro_cliente")
+}
+
+// --- NUEVO: reemplaza el enum EstadoSiniestro. Cada estatus pertenece a un Tipo de Siniestro ---
+model EstatusSiniestro {
+  id              Int     @id @default(autoincrement())
+  nombre          String
+  tipoSiniestroId Int     @map("tipo_siniestro_id")
+  orden           Int     @default(0)
+  activo          Boolean @default(true)
+
+  tipoSiniestro TipoSiniestro @relation(fields: [tipoSiniestroId], references: [id], onDelete: Cascade)
+  siniestros    Siniestro[]
+
+  @@unique([tipoSiniestroId, nombre])
+  @@map("estatus_siniestro")
 }
 
 // ------------------------------------------------------------
@@ -239,7 +314,10 @@ model Vehiculo {
   noPoliza          String?   @map("no_poliza")
   vencimientoPoliza DateTime? @map("vencimiento_poliza")
   estado            String    @default("Activo") // Activo, Inactivo, Baja
-
+  transmisionId Int?
+  transmision   Transmision? @relation(fields: [transmisionId], references: [id])
+  ram           String?
+  
   // --- NUEVO: datos de contrato/cotización ---
   noAnexo             String?   @map("no_anexo")
   noCotizacion        String?   @map("no_cotizacion")
@@ -284,18 +362,6 @@ model Vehiculo {
   @@map("vehiculos")
 }
 
-// ------------------------------------------------------------
-// HOJA "BASE DE DATOS" / "REPORTAR SINIESTRO" / "SEGUIMIENTO"
-// ------------------------------------------------------------
-
-enum EstadoSiniestro {
-  Reportado
-  En_Peritaje    @map("En Peritaje")
-  En_Reparacion  @map("En Reparacion")
-  Entregado
-  Cerrado
-}
-
 // distingue si el siniestro lo creó el staff internamente
 // o si llegó por el formulario público que llena el cliente
 enum OrigenSiniestro {
@@ -305,16 +371,15 @@ enum OrigenSiniestro {
 
 model Siniestro {
   id               Int       @id @default(autoincrement())
-  noSiniestro      String    @unique @map("no_siniestro") // generado: SIN-2026-001
+  noSiniestro      String    @unique @map("no_siniestro") // generado: SIN-NNN
 
   vehiculoId       Int       @map("vehiculo_id")
   fechaSiniestro   DateTime  @map("fecha_siniestro")
 
-  // Datos del conductor (copiados al momento del reporte, no siempre igual al del vehiculo)
   conductor        String
   cedulaConductor  String?   @map("cedula_conductor")
   telConductor     String?   @map("tel_conductor")
-  correoConductor  String?   @map("correo_conductor")               // lo pide el formulario público
+  correoConductor  String?   @map("correo_conductor")
   licenciaConductor    String?   @map("licencia_conductor")
   categoriaLicencia    String?   @map("categoria_licencia")
   vencimientoLicencia  DateTime? @map("vencimiento_licencia")
@@ -328,36 +393,51 @@ model Siniestro {
   intervinoPolicia Boolean   @default(false) @map("intervino_policia")
   heridos          Boolean   @default(false)
 
-  // Flujo de fechas -> usado para calcular Tiempo A/B/C/Total
+  // --- NUEVO: los 2 campos Sí/No pedidos ---
+  tieneCotizacion  Boolean   @default(false) @map("tiene_cotizacion")
+  movilizadoGrua   Boolean   @default(false) @map("movilizado_grua")
+
   fechaNotifAseg     DateTime? @map("fecha_notif_aseg")
   fechaIngresoTaller DateTime? @map("fecha_ingreso_taller")
   fechaProforma      DateTime? @map("fecha_proforma")
   fechaAutorizacion  DateTime? @map("fecha_autorizacion")
   fechaEntrega       DateTime? @map("fecha_entrega")
 
-  estado  EstadoSiniestro @default(Reportado)
+  // ELIMINADO: estado EstadoSiniestro @default(Reportado)
+  // NUEVO: reemplaza el enum, catálogo filtrado por tipoSiniestroId
+  estatusSiniestroId Int? @map("estatus_siniestro_id")
+
   notas   String?
 
-  origen        OrigenSiniestro @default(INTERNO) @map("origen")
-  tipoSiniestroId Int?          @map("tipo_siniestro_id")
+  origen          OrigenSiniestro @default(INTERNO) @map("origen")
+  tipoSiniestroId Int?            @map("tipo_siniestro_id")
 
-  // Un siniestro creado desde el formulario público
-  // no tiene un usuario del sistema detrás.
+  // --- NUEVO: catálogos de esta sesión ---
+  estatusCobroClienteId Int? @map("estatus_cobro_cliente_id")
+  tallerCiudadId        Int? @map("taller_ciudad_id")
+  puntoAtencionTallerId Int? @map("punto_atencion_taller_id")
+
   creadoPorId Int?     @map("creado_por_id")
   creadoEn    DateTime @default(now()) @map("creado_en")
   actualizadoEn DateTime @updatedAt @map("actualizado_en")
 
-  vehiculo   Vehiculo @relation(fields: [vehiculoId], references: [id])
-  ciudad     Ciudad?  @relation(fields: [ciudadId], references: [id])
-  creadoPor  Usuario? @relation("SiniestroCreadoPor", fields: [creadoPorId], references: [id])
+  vehiculo      Vehiculo       @relation(fields: [vehiculoId], references: [id])
+  ciudad        Ciudad?        @relation(fields: [ciudadId], references: [id])
+  creadoPor     Usuario?       @relation("SiniestroCreadoPor", fields: [creadoPorId], references: [id])
   tipoSiniestro TipoSiniestro? @relation(fields: [tipoSiniestroId], references: [id])
+
+  // --- NUEVO: relaciones ---
+  estatusSiniestro    EstatusSiniestro?    @relation(fields: [estatusSiniestroId], references: [id], onDelete: SetNull)
+  estatusCobroCliente EstatusCobroCliente? @relation(fields: [estatusCobroClienteId], references: [id], onDelete: SetNull)
+  tallerCiudad        TallerCiudad?        @relation(fields: [tallerCiudadId], references: [id], onDelete: SetNull)
+  puntoAtencionTaller PuntoAtencionTaller? @relation(fields: [puntoAtencionTallerId], references: [id], onDelete: SetNull)
 
   documentos       SiniestroDocumento[]
   historialEstados SiniestroHistorial[]
-  solicitudFormulario SolicitudFormulario?    // opuesto de SolicitudFormulario.siniestro
+  solicitudFormulario SolicitudFormulario?
 
   @@map("siniestros")
-  @@index([estado])
+  @@index([estatusSiniestroId])
   @@index([vehiculoId])
   @@index([origen])
 }

@@ -18,6 +18,7 @@ import auditoriaRoutes from './routes/auditoria.routes';
 import clientesRouter from './routes/clientes.routes';
 import aseguradorasRouter from './routes/aseguradoras.routes';
 import tipoSiniestroRouter from './routes/tipoSiniestro.routes';
+import catalogosSiniestroRoutes from './routes/catalogosSiniestro.routes';
 
 // NUEVO: catálogos de Vehículo/Contrato
 import {
@@ -29,6 +30,7 @@ import {
   proveedoresCompraRouter,
   tiposOperacionRouter,
   nivelesBlindajeRouter,
+  transmisionesRouter, // <-- nuevo
 } from './routes/catalogos.routes';
 import gamaRouter from './routes/gama.routes';
 
@@ -65,7 +67,9 @@ app.use('/api/gamas', gamaRouter);
 app.use('/api/proveedores-compra', proveedoresCompraRouter);
 app.use('/api/tipos-operacion', tiposOperacionRouter);
 app.use('/api/niveles-blindaje', nivelesBlindajeRouter);
+app.use('/api/transmisiones', transmisionesRouter); // <-- nuevo
 app.use('/api/tipos-siniestro', tipoSiniestroRouter);
+app.use('/api', catalogosSiniestroRoutes);   // <-- AGREGAR ESTA LÍNEA
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

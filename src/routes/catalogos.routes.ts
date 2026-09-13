@@ -8,8 +8,8 @@ export const clasesRouter            = crearRouterCatalogoSimple('clase', 'esta 
 export const proveedoresCompraRouter = crearRouterCatalogoSimple('proveedorCompra', 'este proveedor de compra');
 export const tiposOperacionRouter    = crearRouterCatalogoSimple('tipoOperacion', 'este tipo de operación');
 export const nivelesBlindajeRouter   = crearRouterCatalogoSimple('nivelBlindaje', 'este nivel de blindaje');
+export const transmisionesRouter     = crearRouterCatalogoSimple('transmision', 'esta transmisión'); // <-- nueva// -----
 
-// ------------------------------------------------------------
 // Registra esto en tu archivo principal de rutas (routes/index.ts
 // o donde montes /clientes y /aseguradoras hoy), por ejemplo:
 //

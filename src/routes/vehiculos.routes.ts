@@ -22,6 +22,7 @@ const includeCompleto = {
   proveedorCompra: true,
   tipoOperacion: true,
   nivelBlindaje: true,
+  transmision: true, // <-- AGREGAR
 };
 
 router.get('/', requierePermiso('vehiculos', 'ver'), async (req, res) => {
@@ -79,6 +80,9 @@ const vehiculoSchema = z.object({
   // --- NUEVO: banderas ---
   blindaje: z.boolean().optional(),
   sustituto: z.boolean().optional(),
+
+  transmisionId: z.number().optional(), // <-- AGREGAR
+  ram: z.string().optional(),           // <-- AGREGAR
 });
 
 router.post('/', requierePermiso('vehiculos', 'crear'), async (req, res) => {

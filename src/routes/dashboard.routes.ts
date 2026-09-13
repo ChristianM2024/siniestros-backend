@@ -10,9 +10,21 @@ router.use(requireAuth);
 router.get('/', requierePermiso('dashboard', 'ver'), async (_req, res) => {
   const [total, pendientes, enProceso, solucionados, vehiculosEnFlota, todos] = await Promise.all([
     prisma.siniestro.count(),
-    prisma.siniestro.count({ where: { estado: 'Reportado' } }),
-    prisma.siniestro.count({ where: { estado: { in: ['En_Peritaje', 'En_Reparacion'] } } }),
-    prisma.siniestro.count({ where: { estado: { in: ['Entregado', 'Cerrado'] } } }),
+    // "Pendiente" = sin estatus asignado todavía, o explícitamente "Reportado"
+    prisma.siniestro.count({
+      where: {
+        OR: [
+          { estatusSiniestroId: null },
+          { estatusSiniestro: { nombre: 'Reportado' } },
+        ],
+      },
+    }),
+    prisma.siniestro.count({
+      where: { estatusSiniestro: { nombre: { in: ['En Peritaje', 'En Reparacion'] } } },
+    }),
+    prisma.siniestro.count({
+      where: { estatusSiniestro: { nombre: { in: ['Entregado', 'Cerrado'] } } },
+    }),
     prisma.vehiculo.count({ where: { estado: 'Activo' } }),
     prisma.siniestro.findMany({ where: { fechaEntrega: { not: null } } }),
   ]);
