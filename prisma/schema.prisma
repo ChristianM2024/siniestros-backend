@@ -430,6 +430,27 @@ model Siniestro {
   estatusSiniestro    EstatusSiniestro?    @relation(fields: [estatusSiniestroId], references: [id], onDelete: SetNull)
   estatusCobroCliente EstatusCobroCliente? @relation(fields: [estatusCobroClienteId], references: [id], onDelete: SetNull)
   tallerCiudad        TallerCiudad?        @relation(fields: [tallerCiudadId], references: [id], onDelete: SetNull)
+    // --- NUEVO: KPI / Fechas de proceso (Tipo Simple) ---
+  fechaLlegadaRepuestos DateTime? @map("fecha_llegada_repuestos")
+  fechaAuditoria        DateTime? @map("fecha_auditoria")
+  fechaFiniquito        DateTime? @map("fecha_finiquito")
+  fechaSalidaTaller     DateTime? @map("fecha_salida_taller")
+
+  // --- NUEVO: Valores (Tipo Simple) ---
+  valorSiniestroAntesIva   Float?  @map("valor_siniestro_antes_iva")
+  valorAseguradoVehiculo   Float?  @map("valor_asegurado_vehiculo")
+  valorDeducible           Float?  @map("valor_deducible") // calculado en backend, no es columna generada por SQL
+  esCandidatoPerdidaTotal  Boolean? @map("es_candidato_perdida_total")
+
+  // --- NUEVO: Cobro al Cliente (Tipo Simple) ---
+  fechaNotifCobroCliente        DateTime? @map("fecha_notif_cobro_cliente")
+  noOrdenServicioCobroCliente   String?   @map("no_orden_servicio_cobro_cliente")
+
+  // --- NUEVO: Vehículo Sustituto (Tipo Simple) ---
+  seEntregoVehiculoSustituto  Boolean?  @map("se_entrego_vehiculo_sustituto")
+  fechaHoraEntregaSustituto   DateTime? @map("fecha_hora_entrega_sustituto")
+  horasReclamoHastaEntrega    Float?    @map("horas_reclamo_hasta_entrega") // calculado en backend
+  fechaRetiroSustituto        DateTime? @map("fecha_retiro_sustituto")
   puntoAtencionTaller PuntoAtencionTaller? @relation(fields: [puntoAtencionTallerId], references: [id], onDelete: SetNull)
 
   documentos       SiniestroDocumento[]

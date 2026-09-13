@@ -1,0 +1,15 @@
+-- AlterTable
+ALTER TABLE "siniestros" ADD COLUMN     "es_candidato_perdida_total" BOOLEAN,
+ADD COLUMN     "fecha_auditoria" TIMESTAMP(3),
+ADD COLUMN     "fecha_finiquito" TIMESTAMP(3),
+ADD COLUMN     "fecha_hora_entrega_sustituto" TIMESTAMP(3),
+ADD COLUMN     "fecha_llegada_repuestos" TIMESTAMP(3),
+ADD COLUMN     "fecha_notif_cobro_cliente" TIMESTAMP(3),
+ADD COLUMN     "fecha_retiro_sustituto" TIMESTAMP(3),
+ADD COLUMN     "fecha_salida_taller" TIMESTAMP(3),
+ADD COLUMN     "horas_reclamo_hasta_entrega" DOUBLE PRECISION,
+ADD COLUMN     "no_orden_servicio_cobro_cliente" TEXT,
+ADD COLUMN     "se_entrego_vehiculo_sustituto" BOOLEAN,
+ADD COLUMN     "valor_asegurado_vehiculo" DOUBLE PRECISION,
+ADD COLUMN     "valor_deducible" DOUBLE PRECISION,
+ADD COLUMN     "valor_siniestro_antes_iva" DOUBLE PRECISION;

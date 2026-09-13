@@ -48,7 +48,16 @@ router.get('/', requierePermiso('base_datos', 'ver'), async (req, res) => {
       ciudadId: ciudadId ? Number(ciudadId) : undefined,
       vehiculo: placa ? { placa: { contains: String(placa), mode: 'insensitive' } } : undefined,
     },
-    include: { vehiculo: true, ciudad: true, creadoPor: { select: { nombre: true } }, tipoSiniestro: true },
+    include: {
+      vehiculo: true,
+      ciudad: true,
+      creadoPor: { select: { nombre: true } },
+      tipoSiniestro: true,
+      // AGREGADO: sin esto, la columna Estatus de la lista siempre mostraba "— Sin asignar —"
+      // aunque el dato ya estuviera guardado en la base.
+      estatusSiniestro: true,
+      estatusCobroCliente: true,
+    },
     orderBy: { fechaSiniestro: 'desc' }, 
   });
 
@@ -60,7 +69,18 @@ router.get('/', requierePermiso('base_datos', 'ver'), async (req, res) => {
 router.get('/:id', requierePermiso('base_datos', 'ver'), async (req, res) => {
   const siniestro = await prisma.siniestro.findUnique({
     where: { id: Number(req.params.id) },
-    include: { vehiculo: true, ciudad: true, documentos: true, historialEstados: true, tipoSiniestro: true },
+    include: {
+      vehiculo: true,
+      ciudad: true,
+      documentos: true,
+      historialEstados: true,
+      tipoSiniestro: true,
+      // AGREGADO: misma razón que en GET / — el encabezado del panel de detalle
+      // ("Estado del siniestro") depende de que este objeto venga incluido.
+      estatusSiniestro: true,
+      estatusCobroCliente: true,
+      tallerCiudad: { include: { ciudad: true, taller: true } },
+    },
   });
   if (!siniestro) return res.status(404).json({ error: 'Siniestro no encontrado' });
   res.json({ ...siniestro, tiempos: calcularTiempos(siniestro) });
@@ -141,8 +161,33 @@ const seguimientoSchema = z.object({
   fechaEntrega: z.coerce.date().optional(),
   estado: z.enum(['Reportado', 'En_Peritaje', 'En_Reparacion', 'Entregado', 'Cerrado']).optional(),
   notas: z.string().optional(),
-  // Permite reasignar el tipo de siniestro desde el panel de Seguimiento
   tipoSiniestroId: z.coerce.number().optional(),
+  estatusSiniestroId: z.coerce.number().optional(),
+  estatusCobroClienteId: z.coerce.number().optional(),
+  tallerCiudadId: z.coerce.number().optional(),
+  puntoAtencionTallerId: z.coerce.number().optional(),
+  tieneCotizacion: z.boolean().optional(),
+  movilizadoGrua: z.boolean().optional(),
+
+  // --- NUEVO: KPI / Fechas de proceso, Valores, Cobro al Cliente,
+  // Vehículo Sustituto (grupo de campos del Tipo "Simple") ---
+  fechaLlegadaRepuestos: z.coerce.date().optional(),
+  fechaAuditoria: z.coerce.date().optional(),
+  fechaFiniquito: z.coerce.date().optional(),
+  fechaSalidaTaller: z.coerce.date().optional(),
+
+  valorSiniestroAntesIva: z.coerce.number().optional(),
+  valorAseguradoVehiculo: z.coerce.number().optional(),
+  valorDeducible: z.coerce.number().optional(),
+  esCandidatoPerdidaTotal: z.boolean().optional(),
+
+  fechaNotifCobroCliente: z.coerce.date().optional(),
+  noOrdenServicioCobroCliente: z.string().optional(),
+
+  seEntregoVehiculoSustituto: z.boolean().optional(),
+  fechaHoraEntregaSustituto: z.coerce.date().optional(),
+  horasReclamoHastaEntrega: z.coerce.number().optional(),
+  fechaRetiroSustituto: z.coerce.date().optional(),
 });
 
 router.patch('/:id/seguimiento', requierePermiso('seguimiento', 'editar'), async (req, res) => {
@@ -170,7 +215,16 @@ router.patch('/:id/seguimiento', requierePermiso('seguimiento', 'editar'), async
           }
         : undefined,
     },
-    include: { vehiculo: true, tipoSiniestro: true },
+    include: {
+      vehiculo: true,
+      tipoSiniestro: true,
+      // AGREGADO: sin esto, la respuesta que el frontend usa para
+      // actualizar `siniestro` (setSiniestro(data)) seguía sin traer
+      // el nombre del estatus, aunque ya se guardara el ID.
+      estatusSiniestro: true,
+      estatusCobroCliente: true,
+      tallerCiudad: { include: { ciudad: true, taller: true } },
+    },
   });
 
   res.json({ ...actualizado, tiempos: calcularTiempos(actualizado) });
