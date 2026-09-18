@@ -48,6 +48,42 @@ router.post('/', requierePermiso('usuarios', 'crear'), async (req, res) => {
   res.status(201).json(usuario);
 });
 
+// 👇 NUEVO — pégalo aquí
+const cambiarPasswordSchema = z.object({
+  passwordActual: z.string().min(1),
+  passwordNueva: z.string().min(8),
+});
+
+// PUT /api/usuarios/me/password
+// Cualquier usuario autenticado cambia su propia contraseña.
+router.put('/me/password', async (req, res) => {
+  const parsed = cambiarPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Datos invalidos', detalles: parsed.error.flatten() });
+  }
+  const { passwordActual, passwordNueva } = parsed.data;
+  const userId = req.user!.id;
+
+  const usuario = await prisma.usuario.findUnique({ where: { id: userId } });
+  if (!usuario) {
+    return res.status(404).json({ error: 'Usuario no encontrado' });
+  }
+
+  const coincide = await bcrypt.compare(passwordActual, usuario.passwordHash);
+  if (!coincide) {
+    return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
+  }
+
+  const nuevoHash = await bcrypt.hash(passwordNueva, 10);
+  await prisma.usuario.update({
+    where: { id: userId },
+    data: { passwordHash: nuevoHash },
+  });
+
+  res.json({ mensaje: 'Contraseña actualizada correctamente' });
+});
+// 👆 fin del bloque nuevo
+
 const actualizarPermisoSchema = z.object({
   puedeVer: z.boolean().optional(),
   puedeCrear: z.boolean().optional(),
