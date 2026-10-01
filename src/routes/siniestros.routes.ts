@@ -8,6 +8,7 @@ import { prisma } from '../config/prisma';
 import { requireAuth } from '../middleware/auth';
 import { requierePermiso } from '../middleware/permisos';
 import { calcularTiempos } from '../utils/tiempos';
+import { registrarAuditoria, calcularDiff } from '../utils/auditoria';
 
 const router = Router();
 router.use(requireAuth);
@@ -58,7 +59,7 @@ router.get('/', requierePermiso('base_datos', 'ver'), async (req, res) => {
       estatusSiniestro: true,
       estatusCobroCliente: true,
     },
-    orderBy: { fechaSiniestro: 'desc' }, 
+    orderBy: { fechaSiniestro: 'desc' },
   });
 
   const conTiempos = siniestros.map((s: (typeof siniestros)[number]) => ({ ...s, tiempos: calcularTiempos(s) }));
@@ -149,6 +150,15 @@ router.post('/', requierePermiso('reportar_siniestro', 'crear'), async (req, res
     include: { vehiculo: true },
   });
 
+  // NUEVO: deja constancia en la Bitácora/Auditoría de quién creó el siniestro y cuándo
+  await registrarAuditoria({
+    req,
+    accion: 'CREATE',
+    entidad: 'siniestro',
+    entidadId: siniestro.id,
+    detalle: { noSiniestro: siniestro.noSiniestro, placa: vehiculo.placa },
+  });
+
   res.status(201).json(siniestro);
 });
 
@@ -188,6 +198,119 @@ const seguimientoSchema = z.object({
   fechaHoraEntregaSustituto: z.coerce.date().optional(),
   horasReclamoHastaEntrega: z.coerce.number().optional(),
   fechaRetiroSustituto: z.coerce.date().optional(),
+
+   // --- NUEVO: Datos del Tercero (002) ---
+  placaTercero: z.string().optional(),
+  marcaModeloTercero: z.string().optional(),
+  nombreTerceroCausante: z.string().optional(),
+  terceroAfectoPoliza: z.boolean().optional(),
+
+  // --- NUEVO: Datos del Tercero (003) ---
+  aseguradoraTercero: z.string().optional(),
+  polizaTercero: z.string().optional(),
+  tallerTerceroEstadia: z.string().optional(),
+
+
+
+// --- Valores adicionales (Tipo 005) ---
+  valorIndemnizadoPT1: z.coerce.number().optional(),
+  valorPendienteIndemnizacionPT2: z.coerce.number().optional(),
+
+  // --- Pérdida Total - Proceso ---
+  motivoPerdidaTotal: z.string().optional(),
+  fechaDeclaratoriaPerdidaTotal: z.coerce.date().optional(),
+  solicitudCambioEstatusKimerasoft: z.boolean().optional(),
+  fechaSolicitudCambioEstatusKimerasoft: z.coerce.date().optional(),
+  notificacionRetiroSustitutoPT: z.coerce.date().optional(),
+  gestionRenovacionVehiculo: z.string().optional(),
+  fechaRetiroSustitutoPT: z.coerce.date().optional(),
+
+  // --- Pérdida Total - Prenda bancaria ---
+  entregaEstadoFinancieroBancoPrenda: z.boolean().optional(),
+  nombreBancoPrenda: z.string().optional(),
+  fechaSolicitudLiberacionPrenda: z.coerce.date().optional(),
+  cartaLevantamientoPrendaBanco: z.string().optional(),
+  tramiteLiberacionPrenda: z.string().optional(),
+  entregaChequeFinanciero: z.string().optional(),
+
+  // --- Pérdida Total - Documentos ---
+  docCuvFinal: z.string().optional(),
+  docCertificadoGravamen: z.string().optional(),
+  docOriginalMatricula: z.string().optional(),
+  docCopiaCiPvRucRl: z.string().optional(),
+  docComprobantePagoMatricula: z.string().optional(),
+  docOriginalCopiaLlave: z.string().optional(),
+  docCopiaFacturaVenta: z.string().optional(),
+  docVehiculoSinMultas: z.string().optional(),
+  entregaDocumentosBroker: z.string().optional(),
+  porcentajeAvanceChecklist: z.coerce.number().optional(),
+
+  // --- Pérdida Total - Notaría y cierre ---
+  firmaContratoCompraVentaNotaria: z.string().optional(),
+  fechaPagoPerdidaTotal: z.coerce.date().optional(),
+  cambioEstatusPTotal: z.string().optional(),
+  cambioEstatusFinalTotalVendido: z.boolean().optional(),
+
+// --- Robo (Tipo 006) ---
+  fechaDenunciaRobo: z.coerce.date().optional(),
+  numeroDenuncia: z.string().optional(),
+  vehiculoRecuperado: z.boolean().optional(),
+  fechaRecuperacion: z.coerce.date().optional(),
+  vehiculoDetenidoTrasRecuperacion: z.boolean().optional(),
+  estadoVehiculoRecuperado: z.string().optional(),
+  deducibleRoboComponentesElectronicos: z.coerce.number().optional(),
+
+
+  // --- KPI reducido (Tipo 007) ---
+  totalTiempoSiniestro: z.coerce.number().optional(),
+
+  // --- Legal / Vehículo Detenido (Tipo 007) ---
+  causalDetencion: z.string().optional(),
+  requiereAcompanamientoAbogadoPenal: z.boolean().optional(),
+  confirmacionAcompanamientoAbogadoPenal: z.coerce.date().optional(),
+  abogadoAsignado: z.string().optional(),
+  fechaSeguimientoPartePolicial: z.coerce.date().optional(),
+  fechaEnvioParteBroker: z.coerce.date().optional(),
+  fechaAsignacionFiscalia: z.coerce.date().optional(),
+  fechaOrdenLiberacion: z.coerce.date().optional(),
+  valorCancelarParqueadero: z.coerce.number().optional(),
+  valorCancelarGrua: z.coerce.number().optional(),
+  fechaLiberacionVehiculo: z.coerce.date().optional(),
+  seguimientoIndemnizacionTercero: z.string().optional(),
+
+  // --- Tasa Spatt / Heridos-Fallecidos (Tipo 007) ---
+  hayPersonasLesionadas: z.boolean().optional(),
+  numeroOcupantesLesionados: z.coerce.number().optional(),
+  coberturaTasaSpattOcupanteLesionado: z.coerce.number().optional(),
+  hayPersonasFallecidas: z.boolean().optional(),
+  numeroFallecidos: z.coerce.number().optional(),
+  coberturaTodoRiesgoFallecido: z.coerce.number().optional(),
+  gastosFunerariosFallecido: z.coerce.number().optional(),
+  gastosAmbulancia: z.coerce.number().optional(),
+  limiteSeguroTodoRiesgoSiSuperaSpatt: z.coerce.number().optional(),
+  historiaClinicaSolicitada: z.boolean().optional(),
+  fechaPagoFacturasTasaSpatt: z.coerce.date().optional(),
+
+  // --- Legal / Vehículo Detenido (Tipo 008) ---
+  // (El Tipo 008 reutiliza todos los campos del zod-agregar-007.ts; solo se agrega este)
+  seguimientoIndemnizacionUsuario: z.string().optional(),
+
+// --- Campos requeridos por las fórmulas de negocio ---
+  numeroEventoCliente: z.coerce.number().optional(),
+  diasTaller: z.coerce.number().optional(),
+  fechaHoraReclamo: z.coerce.date().optional(),
+  cumpleKpi6Horas: z.string().optional(),
+
+  // --- Campos que ANTES llegaban vacíos/bloqueados y ahora SIEMPRE llegan calculados
+  //     desde el frontend (ya estaban en el schema, solo recuerda que el valor que
+  //     llega en el payload ya es el resultado final, no hace falta recalcularlo aquí) ---
+  // valorDeducible, esCandidatoPerdidaTotal, valorPendienteIndemnizacionPT2,
+  // deducibleRoboComponentesElectronicos, porcentajeAvanceChecklist, totalTiempoSiniestro,
+  // coberturaTasaSpattOcupanteLesionado, coberturaTodoRiesgoFallecido,
+  // gastosFunerariosFallecido, gastosAmbulancia, limiteSeguroTodoRiesgoSiSuperaSpatt,
+  // horasReclamoHastaEntrega
+
+
 });
 
 router.patch('/:id/seguimiento', requierePermiso('seguimiento', 'editar'), async (req, res) => {
@@ -227,7 +350,50 @@ router.patch('/:id/seguimiento', requierePermiso('seguimiento', 'editar'), async
     },
   });
 
+  // NUEVO: registra en la Bitácora/Auditoría qué campos cambiaron, quién y cuándo
+  const campos = calcularDiff(existente, parsed.data);
+  if (campos.length > 0) {
+    await registrarAuditoria({
+      req,
+      accion: 'UPDATE',
+      entidad: 'siniestro',
+      entidadId: actualizado.id,
+      detalle: { campos },
+    });
+  }
+
   res.json({ ...actualizado, tiempos: calcularTiempos(actualizado) });
+});
+
+// ---------- GET /api/siniestros/:id/historial  (pestaña Bitácora) ----------
+// NUEVO: no existía — por eso la pestaña Bitácora del frontend siempre
+// mostraba "No hay historial disponible". Lee de AuditLog (tabla de
+// auditoría ya existente) filtrando por este siniestro.
+router.get('/:id/historial', requierePermiso('seguimiento', 'ver'), async (req, res) => {
+  const id = Number(req.params.id);
+
+  const registros = await prisma.auditLog.findMany({
+    where: {
+      entidad: 'siniestro',
+      entidadId: String(id),
+    },
+    orderBy: { creadoEn: 'desc' },
+    include: {
+      usuario: { select: { nombre: true, email: true } },
+    },
+  });
+
+  const historial = registros.map((r) => ({
+    id: r.id,
+    accion: r.accion,
+    usuarioNombre: r.usuario?.nombre ?? null,
+    // usuarioEmail queda guardado en el log aunque el usuario se borre después
+    usuarioEmail: r.usuario?.email ?? r.usuarioEmail ?? null,
+    creadoEn: r.creadoEn,
+    detalle: r.detalle, // { campos: [{ campo, antes, despues }] }
+  }));
+
+  res.json(historial);
 });
 
 // ============================================================

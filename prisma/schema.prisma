@@ -383,44 +383,34 @@ model Siniestro {
   licenciaConductor    String?   @map("licencia_conductor")
   categoriaLicencia    String?   @map("categoria_licencia")
   vencimientoLicencia  DateTime? @map("vencimiento_licencia")
-
   lugarAccidente   String    @map("lugar_accidente")
   ciudadId         Int?      @map("ciudad_id")
   descripcion      String?
-
   danosVehiculo    String?   @map("danos_vehiculo")
   danosTerceros    String?   @map("danos_terceros")
   intervinoPolicia Boolean   @default(false) @map("intervino_policia")
   heridos          Boolean   @default(false)
-
   // --- NUEVO: los 2 campos Sí/No pedidos ---
   tieneCotizacion  Boolean   @default(false) @map("tiene_cotizacion")
   movilizadoGrua   Boolean   @default(false) @map("movilizado_grua")
-
   fechaNotifAseg     DateTime? @map("fecha_notif_aseg")
   fechaIngresoTaller DateTime? @map("fecha_ingreso_taller")
   fechaProforma      DateTime? @map("fecha_proforma")
   fechaAutorizacion  DateTime? @map("fecha_autorizacion")
   fechaEntrega       DateTime? @map("fecha_entrega")
-
   // ELIMINADO: estado EstadoSiniestro @default(Reportado)
   // NUEVO: reemplaza el enum, catálogo filtrado por tipoSiniestroId
   estatusSiniestroId Int? @map("estatus_siniestro_id")
-
-  notas   String?
-
+  notas           String?
   origen          OrigenSiniestro @default(INTERNO) @map("origen")
   tipoSiniestroId Int?            @map("tipo_siniestro_id")
-
   // --- NUEVO: catálogos de esta sesión ---
   estatusCobroClienteId Int? @map("estatus_cobro_cliente_id")
   tallerCiudadId        Int? @map("taller_ciudad_id")
   puntoAtencionTallerId Int? @map("punto_atencion_taller_id")
-
   creadoPorId Int?     @map("creado_por_id")
   creadoEn    DateTime @default(now()) @map("creado_en")
   actualizadoEn DateTime @updatedAt @map("actualizado_en")
-
   vehiculo      Vehiculo       @relation(fields: [vehiculoId], references: [id])
   ciudad        Ciudad?        @relation(fields: [ciudadId], references: [id])
   creadoPor     Usuario?       @relation("SiniestroCreadoPor", fields: [creadoPorId], references: [id])
@@ -452,6 +442,117 @@ model Siniestro {
   horasReclamoHastaEntrega    Float?    @map("horas_reclamo_hasta_entrega") // calculado en backend
   fechaRetiroSustituto        DateTime? @map("fecha_retiro_sustituto")
   puntoAtencionTaller PuntoAtencionTaller? @relation(fields: [puntoAtencionTallerId], references: [id], onDelete: SetNull)
+
+  // --- NUEVO: Datos del Tercero (Tipo RC atendido por aseguradora del tercero) ---
+  placaTercero           String?  @map("placa_tercero")
+  marcaModeloTercero     String?  @map("marca_modelo_tercero")
+  nombreTerceroCausante  String?  @map("nombre_tercero_causante")
+  terceroAfectoPoliza    Boolean? @map("tercero_afecto_poliza")
+
+  aseguradoraTercero    String? @map("aseguradora_tercero")
+  polizaTercero         String? @map("poliza_tercero")
+  tallerTerceroEstadia  String? @map("taller_tercero_estadia")
+
+  // --- NUEVO: Valores adicionales (Tipo 005 — Posible pérdida total por daños) ---
+  valorIndemnizadoPT1          Float? @map("valor_indemnizado_pt1")
+  valorPendienteIndemnizacionPT2 Float? @map("valor_pendiente_indemnizacion_pt2") // calculado en backend
+
+  // --- NUEVO: Pérdida Total - Proceso (Tipo 005) ---
+  motivoPerdidaTotal                  String?   @map("motivo_perdida_total")
+  fechaDeclaratoriaPerdidaTotal        DateTime? @map("fecha_declaratoria_perdida_total")
+  solicitudCambioEstatusKimerasoft     Boolean?  @map("solicitud_cambio_estatus_kimerasoft")
+  fechaSolicitudCambioEstatusKimerasoft DateTime? @map("fecha_solicitud_cambio_estatus_kimerasoft")
+  notificacionRetiroSustitutoPT        DateTime? @map("notificacion_retiro_sustituto_pt")
+  gestionRenovacionVehiculo            String?   @map("gestion_renovacion_vehiculo")
+  fechaRetiroSustitutoPT               DateTime? @map("fecha_retiro_sustituto_pt")
+
+  // --- NUEVO: Pérdida Total - Prenda bancaria (Tipo 005) ---
+  entregaEstadoFinancieroBancoPrenda Boolean?  @map("entrega_estado_financiero_banco_prenda")
+  nombreBancoPrenda                  String?   @map("nombre_banco_prenda")
+  fechaSolicitudLiberacionPrenda     DateTime? @map("fecha_solicitud_liberacion_prenda")
+  cartaLevantamientoPrendaBanco      String?   @map("carta_levantamiento_prenda_banco")
+  tramiteLiberacionPrenda            String?   @map("tramite_liberacion_prenda")
+  entregaChequeFinanciero            String?   @map("entrega_cheque_financiero")
+
+  // --- NUEVO: Pérdida Total - Documentos (Tipo 005) ---
+  docCuvFinal                  String? @map("doc_cuv_final")
+  docCertificadoGravamen       String? @map("doc_certificado_gravamen")
+  docOriginalMatricula         String? @map("doc_original_matricula")
+  docCopiaCiPvRucRl            String? @map("doc_copia_ci_pv_ruc_rl")
+  docComprobantePagoMatricula  String? @map("doc_comprobante_pago_matricula")
+  docOriginalCopiaLlave        String? @map("doc_original_copia_llave")
+  docCopiaFacturaVenta         String? @map("doc_copia_factura_venta")
+  docVehiculoSinMultas         String? @map("doc_vehiculo_sin_multas")
+  entregaDocumentosBroker      String? @map("entrega_documentos_broker")
+  porcentajeAvanceChecklist    Float?  @map("porcentaje_avance_checklist") // calculado en backend
+
+  // --- NUEVO: Pérdida Total - Notaría y cierre (Tipo 005) ---
+  firmaContratoCompraVentaNotaria    String?   @map("firma_contrato_compra_venta_notaria")
+  fechaPagoPerdidaTotal              DateTime? @map("fecha_pago_perdida_total")
+  cambioEstatusPTotal                String?   @map("cambio_estatus_p_total")
+  cambioEstatusFinalTotalVendido     Boolean?  @map("cambio_estatus_final_total_vendido")
+
+// --- NUEVO: Robo (Tipo 006 — Siniestro posible pérdida total por robo) ---
+  fechaDenunciaRobo                     DateTime? @map("fecha_denuncia_robo")
+  numeroDenuncia                        String?   @map("numero_denuncia")
+  vehiculoRecuperado                    Boolean?  @map("vehiculo_recuperado")
+  fechaRecuperacion                     DateTime? @map("fecha_recuperacion")
+  vehiculoDetenidoTrasRecuperacion      Boolean?  @map("vehiculo_detenido_tras_recuperacion")
+  estadoVehiculoRecuperado              String?   @map("estado_vehiculo_recuperado") // "Con daños" / "Sin daños"
+  deducibleRoboComponentesElectronicos  Float?    @map("deducible_robo_componentes_electronicos") // calculado en backend, fórmula pendiente
+
+  // --- NUEVO: KPI reducido (Tipo 007 — Detención con heridos/fallecidos, afecta a tercero) ---
+  totalTiempoSiniestro                Float?    @map("total_tiempo_siniestro") // calculado en backend, fórmula pendiente
+
+  // --- NUEVO: Legal / Vehículo Detenido (Tipo 007) ---
+  causalDetencion                       String?   @map("causal_detencion") // Daños terceros/propios / Lesionados / Fallecidos / Embriaguez / Daños propiedad pública / Abandono / Robo recuperado
+  requiereAcompanamientoAbogadoPenal     Boolean?  @map("requiere_acompanamiento_abogado_penal")
+  confirmacionAcompanamientoAbogadoPenal DateTime? @map("confirmacion_acompanamiento_abogado_penal")
+  abogadoAsignado                       String?   @map("abogado_asignado")
+  fechaSeguimientoPartePolicial          DateTime? @map("fecha_seguimiento_parte_policial")
+  fechaEnvioParteBroker                  DateTime? @map("fecha_envio_parte_broker")
+  fechaAsignacionFiscalia                DateTime? @map("fecha_asignacion_fiscalia")
+  fechaOrdenLiberacion                   DateTime? @map("fecha_orden_liberacion")
+  valorCancelarParqueadero                Float?   @map("valor_cancelar_parqueadero")
+  valorCancelarGrua                       Float?   @map("valor_cancelar_grua")
+  fechaLiberacionVehiculo                 DateTime? @map("fecha_liberacion_vehiculo")
+  seguimientoIndemnizacionTercero         String?   @map("seguimiento_indemnizacion_tercero")
+
+  // --- NUEVO: Tasa Spatt / Heridos-Fallecidos (Tipo 007) ---
+  hayPersonasLesionadas                Boolean?  @map("hay_personas_lesionadas")
+  numeroOcupantesLesionados            Int?      @map("numero_ocupantes_lesionados")
+  coberturaTasaSpattOcupanteLesionado  Float?    @map("cobertura_tasa_spatt_ocupante_lesionado") // calculado en backend, fórmula pendiente
+  hayPersonasFallecidas                Boolean?  @map("hay_personas_fallecidas")
+  numeroFallecidos                     Int?      @map("numero_fallecidos")
+  coberturaTodoRiesgoFallecido         Float?    @map("cobertura_todo_riesgo_fallecido") // calculado en backend, fórmula pendiente
+  gastosFunerariosFallecido            Float?    @map("gastos_funerarios_fallecido") // calculado en backend, fórmula pendiente
+  gastosAmbulancia                     Float?    @map("gastos_ambulancia") // calculado en backend, fórmula pendiente
+  limiteSeguroTodoRiesgoSiSuperaSpatt  Float?    @map("limite_seguro_todo_riesgo_si_supera_spatt") // calculado en backend, fórmula pendiente
+  historiaClinicaSolicitada            Boolean?  @map("historia_clinica_solicitada")
+  fechaPagoFacturasTasaSpatt           DateTime? @map("fecha_pago_facturas_tasa_spatt")
+
+  // --- NUEVO: Legal / Vehículo Detenido (Tipo 008 — Detención con heridos/fallecidos, el tercero afecta al usuario ISIRENT) ---
+  // (El Tipo 008 reutiliza TODOS los campos ya agregados para el Tipo 007 —
+  //  Legal / Vehículo Detenido y Tasa Spatt / Heridos-Fallecidos, ver schema-agregar-007.prisma —
+  //  solo se agrega este campo nuevo, que reemplaza a "seguimientoIndemnizacionTercero" cuando el tipo es 008)
+  seguimientoIndemnizacionUsuario String? @map("seguimiento_indemnizacion_usuario")
+
+  // --- NUEVO: campos requeridos por las fórmulas de negocio (ver mensaje del cliente con la hoja de ejemplo) ---
+
+  // Usado para elegir el tramo de "Valor deducible" (1er/2do/3er evento del cliente)
+  numeroEventoCliente        Int?      @map("numero_evento_cliente")
+
+  // Días en taller = Fecha_Salida_Taller - Fecha_Ingreso_Taller (Tipos 001, 002, 003, 004)
+  diasTaller                  Float?    @map("dias_taller") // calculado en frontend al guardar
+
+  // Fecha y hora del reclamo del vehículo sustituto (distinta de Fecha Notif. Aseg.)
+  // usada junto con fechaHoraEntregaSustituto para "Horas desde el reclamo hasta la entrega"
+  fechaHoraReclamo             DateTime? @map("fecha_hora_reclamo")
+
+  // ¿Cumple KPI de 6 horas del vehículo sustituto? ("En KPI" / "Fuera de KPI")
+  cumpleKpi6Horas              String?   @map("cumple_kpi_6_horas") // calculado en frontend al guardar
+
+
 
   documentos       SiniestroDocumento[]
   historialEstados SiniestroHistorial[]
